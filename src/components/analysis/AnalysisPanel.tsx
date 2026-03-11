@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Utensils, ShoppingBag, Pill, Landmark, MapPin, TrendingUp, Star } from "lucide-react";
+import { Utensils, ShoppingBag, Pill, Landmark, MapPin, TrendingUp, Star, Users, Car, Briefcase } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { AnalysisData } from "@/lib/mockData";
 
@@ -39,7 +39,7 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
       {/* Score header */}
       <motion.div custom={0} variants={cv} initial="hidden" animate="visible"
         className="border-b border-border p-5 bg-card">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">Puntuación de la zona</p>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${nivelColor}`}>
             {data.nivelActividad}
@@ -48,7 +48,11 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
         <p className="font-headline text-5xl font-bold text-primary">
           {data.puntuacion}<span className="text-lg text-muted-foreground font-body font-normal">/10</span>
         </p>
-        <p className="font-body text-xs text-muted-foreground mt-1">
+        <div className="flex items-center gap-2 mt-1">
+          <Briefcase className="h-3.5 w-3.5 text-primary" />
+          <p className="font-body text-xs text-primary font-medium">{data.tipoSeleccionado}</p>
+        </div>
+        <p className="font-body text-xs text-muted-foreground mt-0.5">
           {data.lat.toFixed(4)}, {data.lng.toFixed(4)}
         </p>
       </motion.div>
@@ -73,23 +77,47 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
           ))}
         </motion.div>
 
-        {/* Total */}
+        {/* Total + traffic metrics */}
         <motion.div custom={2} variants={cv} initial="hidden" animate="visible"
-          className="rounded-lg border border-border bg-background p-4 flex items-center gap-3">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          <div>
-            <p className="font-headline text-2xl font-bold text-foreground">{data.totalNegocios}</p>
-            <p className="font-body text-xs text-muted-foreground">Negocios cercanos (500m)</p>
+          className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg border border-border bg-background p-3 text-center">
+            <TrendingUp className="h-4 w-4 text-primary mx-auto mb-1" />
+            <p className="font-headline text-lg font-bold text-foreground">{data.totalNegocios}</p>
+            <p className="font-body text-[10px] text-muted-foreground leading-tight">Negocios cercanos</p>
+          </div>
+          <div className="rounded-lg border border-border bg-background p-3 text-center">
+            <Users className="h-4 w-4 text-primary mx-auto mb-1" />
+            <p className="font-headline text-lg font-bold text-foreground">{data.promedioPeatones.toLocaleString()}</p>
+            <p className="font-body text-[10px] text-muted-foreground leading-tight">Peatones / día</p>
+          </div>
+          <div className="rounded-lg border border-border bg-background p-3 text-center">
+            <Car className="h-4 w-4 text-primary mx-auto mb-1" />
+            <p className="font-headline text-lg font-bold text-foreground">{data.flujoVehicular.toLocaleString()}</p>
+            <p className="font-body text-[10px] text-muted-foreground leading-tight">Vehículos / día</p>
           </div>
         </motion.div>
 
-        {/* Chart */}
+        {/* Business-specific analysis */}
         <motion.div custom={3} variants={cv} initial="hidden" animate="visible"
+          className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-start gap-2">
+            <Briefcase className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div>
+              <p className="font-body text-xs text-primary font-medium uppercase tracking-wider mb-1">
+                Análisis para {data.tipoSeleccionado}
+              </p>
+              <p className="font-body text-sm text-foreground leading-relaxed">{data.analisisNegocio}</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Distribution chart */}
+        <motion.div custom={4} variants={cv} initial="hidden" animate="visible"
           className="rounded-lg border border-border bg-background p-4">
           <p className="font-body text-xs text-muted-foreground uppercase tracking-wider mb-3">Distribución de negocios</p>
-          <ResponsiveContainer width="100%" height={140}>
+          <ResponsiveContainer width="100%" height={130}>
             <BarChart data={data.distribucion} barSize={28}>
-              <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: "hsl(216 20% 50%)" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="nombre" tick={{ fontSize: 10, fill: "hsl(216 20% 50%)" }} axisLine={false} tickLine={false} />
               <YAxis hide allowDecimals={false} />
               <Tooltip
                 contentStyle={{ borderRadius: 8, border: "1px solid hsl(216 14% 89%)", fontSize: 12 }}
@@ -104,8 +132,38 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* Recommendation */}
-        <motion.div custom={4} variants={cv} initial="hidden" animate="visible"
+        {/* Weekly vehicle flow chart */}
+        <motion.div custom={5} variants={cv} initial="hidden" animate="visible"
+          className="rounded-lg border border-border bg-background p-4">
+          <p className="font-body text-xs text-muted-foreground uppercase tracking-wider mb-3">Flujo semanal estimado</p>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={data.flujoSemanal} barSize={14}>
+              <XAxis dataKey="dia" tick={{ fontSize: 9, fill: "hsl(216 20% 50%)" }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{ borderRadius: 8, border: "1px solid hsl(216 14% 89%)", fontSize: 12 }}
+                cursor={{ fill: "hsl(210 25% 96%)" }}
+                formatter={(value: number, name: string) => [
+                  value.toLocaleString(),
+                  name === "vehiculos" ? "Vehículos" : "Peatones",
+                ]}
+              />
+              <Bar dataKey="vehiculos" fill="hsl(214 100% 40%)" radius={[3, 3, 0, 0]} name="vehiculos" />
+              <Bar dataKey="peatones" fill="hsl(214 50% 65%)" radius={[3, 3, 0, 0]} name="peatones" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex gap-4 mt-2 justify-center">
+            <span className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-full bg-primary" /> Vehículos
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-body text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(214 50% 65%)" }} /> Peatones
+            </span>
+          </div>
+        </motion.div>
+
+        {/* General recommendation */}
+        <motion.div custom={6} variants={cv} initial="hidden" animate="visible"
           className="rounded-lg border border-primary/20 bg-primary/5 p-4">
           <div className="flex items-start gap-2">
             <Star className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -117,7 +175,7 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
         </motion.div>
 
         {/* Nearby businesses list */}
-        <motion.div custom={5} variants={cv} initial="hidden" animate="visible"
+        <motion.div custom={7} variants={cv} initial="hidden" animate="visible"
           className="rounded-lg border border-border bg-background p-4">
           <p className="font-body text-xs text-muted-foreground uppercase tracking-wider mb-3">Negocios cercanos</p>
           <div className="space-y-2">
