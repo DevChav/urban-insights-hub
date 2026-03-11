@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
-import { MapContainer, TileLayer, Circle, useMapEvents } from "react-leaflet";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback, useEffect, useRef } from "react";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AnalysisData {
   lat: number;
@@ -20,19 +20,19 @@ const MOCK_TYPES = [
 ];
 
 function generateMockData(lat: number, lng: number): AnalysisData {
-  const score = Math.floor(Math.random() * 4) + 6; // 6-9
+  const score = Math.floor(Math.random() * 4) + 6;
   const nearbyCount = Math.floor(Math.random() * 25) + 15;
   return { lat, lng, score, nearbyCount, types: MOCK_TYPES };
 }
 
-function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
+const cardVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.05, duration: 0.35, ease: "easeOut" as const },
+  }),
+};
 
 function SkeletonPanel() {
   return (
@@ -47,19 +47,9 @@ function SkeletonPanel() {
   );
 }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.05, duration: 0.35, ease: "easeOut" as const },
-  }),
-};
-
 function AnalysisPanel({ data }: { data: AnalysisData }) {
   return (
     <div className="flex flex-col h-full">
-      {/* Sticky score card */}
       <motion.div
         custom={0}
         variants={cardVariants}
@@ -78,36 +68,17 @@ function AnalysisPanel({ data }: { data: AnalysisData }) {
         </p>
       </motion.div>
 
-      {/* Scrollable detail cards */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        <motion.div
-          custom={1}
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          className="border border-border rounded-lg p-5 bg-card"
-        >
-          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-1">
-            Nearby Businesses
-          </p>
-          <p className="font-headline text-3xl font-bold text-foreground">
-            {data.nearbyCount}
-          </p>
-          <p className="font-body text-sm text-muted-foreground mt-1">
-            Within 500m radius
-          </p>
+        <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible"
+          className="border border-border rounded-lg p-5 bg-card">
+          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-1">Nearby Businesses</p>
+          <p className="font-headline text-3xl font-bold text-foreground">{data.nearbyCount}</p>
+          <p className="font-body text-sm text-muted-foreground mt-1">Within 500m radius</p>
         </motion.div>
 
-        <motion.div
-          custom={2}
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          className="border border-border rounded-lg p-5 bg-card"
-        >
-          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-3">
-            Types of Businesses
-          </p>
+        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible"
+          className="border border-border rounded-lg p-5 bg-card">
+          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-3">Types of Businesses</p>
           <div className="space-y-3">
             {data.types.map((t) => (
               <div key={t.name} className="flex items-center justify-between">
@@ -118,16 +89,9 @@ function AnalysisPanel({ data }: { data: AnalysisData }) {
           </div>
         </motion.div>
 
-        <motion.div
-          custom={3}
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          className="border border-border rounded-lg p-5 bg-card"
-        >
-          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-3">
-            Area Summary
-          </p>
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible"
+          className="border border-border rounded-lg p-5 bg-card">
+          <p className="font-body text-sm text-muted-foreground uppercase tracking-wider mb-3">Area Summary</p>
           <p className="font-body text-sm text-foreground leading-relaxed">
             This area shows moderate to high commercial activity with a diverse mix of business types.
             The density of restaurants and retail suggests strong foot traffic, making it suitable for
@@ -140,52 +104,68 @@ function AnalysisPanel({ data }: { data: AnalysisData }) {
 }
 
 const AnalyzePage = () => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const circleRef = useRef<L.Circle | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [circleCenter, setCircleCenter] = useState<[number, number] | null>(null);
 
-  const handleMapClick = useCallback((lat: number, lng: number) => {
-    setCircleCenter([lat, lng]);
+  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
+    const { lat, lng } = e.latlng;
+
+    // Remove old circle
+    if (circleRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(circleRef.current);
+    }
+
+    // Draw new circle
+    if (mapInstanceRef.current) {
+      circleRef.current = L.circle([lat, lng], {
+        radius: 500,
+        color: "#0052CC",
+        fillColor: "#0052CC",
+        fillOpacity: 0.1,
+        weight: 2,
+      }).addTo(mapInstanceRef.current);
+    }
+
     setLoading(true);
     setAnalysis(null);
 
-    // Simulate API delay
     setTimeout(() => {
       setAnalysis(generateMockData(lat, lng));
       setLoading(false);
     }, 800);
   }, []);
 
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapRef.current, {
+      center: [41.9028, 12.4964],
+      zoom: 13,
+      zoomControl: false,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    map.on("click", handleMapClick);
+    mapInstanceRef.current = map;
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, [handleMapClick]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       {/* Map — 60% */}
       <div className="w-[60%] h-full relative">
-        <MapContainer
-          center={[41.9028, 12.4964]}
-          zoom={13}
-          className="h-full w-full"
-          zoomControl={false}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <MapClickHandler onMapClick={handleMapClick} />
-          {circleCenter && (
-            <Circle
-              center={circleCenter}
-              radius={500}
-              pathOptions={{
-                color: "hsl(214, 100%, 40%)",
-                fillColor: "hsl(214, 100%, 40%)",
-                fillOpacity: 0.1,
-                weight: 2,
-              }}
-            />
-          )}
-        </MapContainer>
+        <div ref={mapRef} className="h-full w-full" />
 
-        {/* Instruction overlay */}
         <AnimatePresence>
           {!analysis && !loading && (
             <motion.div
@@ -207,12 +187,8 @@ const AnalyzePage = () => {
         {!analysis && !loading && (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
-              <p className="font-headline text-lg font-semibold text-foreground mb-2">
-                No location selected
-              </p>
-              <p className="font-body text-sm text-muted-foreground">
-                Click on the map to begin your analysis
-              </p>
+              <p className="font-headline text-lg font-semibold text-foreground mb-2">No location selected</p>
+              <p className="font-body text-sm text-muted-foreground">Click on the map to begin your analysis</p>
             </div>
           </div>
         )}
