@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { MapPin, Users, Lightbulb } from "lucide-react";
 
 const items = [
-  { icon: MapPin, title: "¿Qué es UrbanData?", text: "UrbanData es una plataforma interactiva que permite a emprendedores analizar zonas comerciales antes de abrir un negocio. Mediante un mapa interactivo centrado en Mexicali, los usuarios pueden explorar la densidad y el tipo de comercios en cualquier área." },
+  { icon: MapPin, title: "¿Qué es Geomarket?", text: "Geomarket lataforma interactiva que permite a emprendedores analizar zonas comerciales antes de abrir un negocio. Mediante un mapa interactivo centrado en Mexicali, los usuarios pueden explorar la densidad y el tipo de comercios en cualquier área." },
   { icon: Users, title: "¿Para quién es?", text: "Está diseñada para emprendedores, inversionistas y pequeños empresarios que buscan tomar decisiones informadas sobre la ubicación de su nuevo negocio." },
   { icon: Lightbulb, title: "¿Cómo funciona?", text: "El usuario selecciona un punto en el mapa y el sistema genera un análisis simulado del área: cantidad de negocios, tipos de comercios, nivel de actividad y una puntuación de potencial comercial del 1 al 10." },
 ];
@@ -12,7 +12,7 @@ export default function AcercaPage() {
     <div className="mx-auto max-w-3xl px-6 py-12 space-y-10">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="font-headline text-3xl font-bold text-foreground mb-2">Acerca del proyecto</h1>
-        <p className="font-body text-muted-foreground">Conoce más sobre UrbanData y cómo puede ayudarte.</p>
+        <p className="font-body text-muted-foreground">Conoce más sobre Geomarket y cómo puede ayudarte.</p>
       </motion.div>
 
       <div className="space-y-6">

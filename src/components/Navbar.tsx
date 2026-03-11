@@ -15,7 +15,7 @@ export default function Navbar() {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         <NavLink to="/" className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-primary" />
-          <span className="font-headline text-lg font-bold text-foreground">UrbanData</span>
+          <span className="font-headline text-lg font-bold text-foreground">Geomarket</span>
         </NavLink>
         <nav className="flex items-center gap-1">
           {links.map((l) => (
