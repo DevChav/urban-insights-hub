@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { MapPin, Users, Lightbulb } from "lucide-react";
 
 const items = [
-  { icon: MapPin, title: "¿Qué es Geomarket?", text: "Geomarket lataforma interactiva que permite a emprendedores analizar zonas comerciales antes de abrir un negocio. Mediante un mapa interactivo centrado en Mexicali, los usuarios pueden explorar la densidad y el tipo de comercios en cualquier área." },
+  { icon: MapPin, title: "¿Qué es GeoMarket?", text: "GeoMarket es una plataforma interactiva que permite a emprendedores analizar zonas comerciales antes de abrir un negocio. Utiliza datos reales de OpenStreetMap para mostrar los negocios cercanos a cualquier punto de Mexicali y evalúa el potencial comercial de la zona." },
   { icon: Users, title: "¿Para quién es?", text: "Está diseñada para emprendedores, inversionistas y pequeños empresarios que buscan tomar decisiones informadas sobre la ubicación de su nuevo negocio." },
   { icon: Lightbulb, title: "¿Cómo funciona?", text: "El usuario selecciona un punto en el mapa y el sistema genera un análisis simulado del área: cantidad de negocios, tipos de comercios, nivel de actividad y una puntuación de potencial comercial del 1 al 10." },
 ];
