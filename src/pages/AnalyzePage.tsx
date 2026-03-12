@@ -13,64 +13,95 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+
+const RADIUS_OPTIONS = [200, 500, 1000, 2000, 5000];
+
+function radiusLabel(m: number) {
+  return m >= 1000 ? `${m / 1000} km` : `${m} m`;
+}
 
 const AnalyzePage = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio | null>(null);
+  const [radius, setRadius] = useState(500);
+  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(null);
 
-  const handleMapClick = useCallback(
-    (e: L.LeafletMouseEvent) => {
-      if (!tipoNegocio) return;
-      const { lat, lng } = e.latlng;
+  // Core analysis function
+  const runAnalysis = useCallback(
+    (lat: number, lng: number, tipo: TipoNegocio, r: number) => {
       const map = mapInstanceRef.current;
       if (!map) return;
 
-      if (circleRef.current) map.removeLayer(circleRef.current);
-      if (markersRef.current) map.removeLayer(markersRef.current);
+      // Abort any in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
+      // Clear previous overlays
+      if (circleRef.current) {
+        map.removeLayer(circleRef.current);
+        circleRef.current = null;
+      }
+      if (markersRef.current) {
+        map.removeLayer(markersRef.current);
+        markersRef.current = null;
+      }
+
+      // Draw new circle
       circleRef.current = L.circle([lat, lng], {
-        radius: 500,
+        radius: r,
         color: "hsl(214 100% 40%)",
         fillColor: "hsl(214 100% 40%)",
         fillOpacity: 0.08,
         weight: 2,
       }).addTo(map);
 
-      const group = L.layerGroup();
-
       setLoading(true);
       setAnalysis(null);
 
-      analyzeZone(lat, lng, tipoNegocio).then((data) => {
-        data.negocios.forEach((n) => {
-          const icon = L.divIcon({
-            className: "business-marker",
-            html: `<div style="background:hsl(214 100% 40%);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)">${n.nombre.charAt(0)}</div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-          });
-          L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
-        });
-        group.addTo(map);
-        markersRef.current = group;
+      analyzeZone(lat, lng, tipo, r, controller.signal)
+        .then((data) => {
+          if (controller.signal.aborted) return;
 
-        setAnalysis(data);
-        setLoading(false);
-      }).catch(() => {
-        setLoading(false);
-      });
+          const group = L.layerGroup();
+          data.negocios.forEach((n) => {
+            const icon = L.divIcon({
+              className: "business-marker",
+              html: `<div style="background:hsl(214 100% 40%);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)">${n.nombre.charAt(0)}</div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+            });
+            L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
+          });
+          group.addTo(map);
+          markersRef.current = group;
+
+          setAnalysis(data);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (err?.name === "AbortError") return;
+          setLoading(false);
+        });
     },
-    [tipoNegocio]
+    []
   );
 
-  // Keep map click handler in sync with tipoNegocio
-  const handleMapClickRef = useRef(handleMapClick);
-  handleMapClickRef.current = handleMapClick;
+  // Map click
+  const runAnalysisRef = useRef(runAnalysis);
+  runAnalysisRef.current = runAnalysis;
+  const tipoRef = useRef(tipoNegocio);
+  tipoRef.current = tipoNegocio;
+  const radiusRef = useRef(radius);
+  radiusRef.current = radius;
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -86,7 +117,15 @@ const AnalyzePage = () => {
     }).addTo(map);
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
-    map.on("click", (e: L.LeafletMouseEvent) => handleMapClickRef.current(e));
+
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      const tipo = tipoRef.current;
+      if (!tipo) return;
+      const { lat, lng } = e.latlng;
+      setSelectedPoint({ lat, lng });
+      runAnalysisRef.current(lat, lng, tipo, radiusRef.current);
+    });
+
     mapInstanceRef.current = map;
 
     return () => {
@@ -95,14 +134,25 @@ const AnalyzePage = () => {
     };
   }, []);
 
+  // Re-analyze when radius changes (if a point is already selected)
+  useEffect(() => {
+    if (selectedPoint && tipoNegocio) {
+      runAnalysis(selectedPoint.lat, selectedPoint.lng, tipoNegocio, radius);
+    }
+  }, [radius, tipoNegocio, runAnalysis]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Find closest radius option index for slider
+  const radiusIndex = RADIUS_OPTIONS.indexOf(radius);
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden">
       {/* Map */}
       <div className="flex-1 relative">
         <div ref={mapRef} className="h-full w-full" />
 
-        {/* Business type selector overlay */}
-        <div className="absolute top-4 left-4 z-[1000]">
+        {/* Controls overlay */}
+        <div className="absolute top-4 left-4 z-[1000] space-y-3">
+          {/* Business type selector */}
           <Select
             value={tipoNegocio ?? ""}
             onValueChange={(v) => setTipoNegocio(v as TipoNegocio)}
@@ -118,6 +168,27 @@ const AnalyzePage = () => {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Radius control */}
+          <div className="bg-card shadow-lg border border-border rounded-md px-4 py-3 w-[240px]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-body text-xs text-muted-foreground">Radio de búsqueda</p>
+              <span className="font-headline text-sm font-semibold text-primary">
+                {radiusLabel(radius)}
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={RADIUS_OPTIONS.length - 1}
+              step={1}
+              value={[radiusIndex >= 0 ? radiusIndex : 1]}
+              onValueChange={([i]) => setRadius(RADIUS_OPTIONS[i])}
+            />
+            <div className="flex justify-between mt-1">
+              <span className="font-body text-[10px] text-muted-foreground">200 m</span>
+              <span className="font-body text-[10px] text-muted-foreground">5 km</span>
+            </div>
+          </div>
         </div>
 
         <AnimatePresence>
