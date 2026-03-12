@@ -50,7 +50,7 @@ const NOMBRES_NEGOCIOS: Record<string, string[]> = {
   Banco: ["BBVA", "Banorte", "Banco Azteca", "HSBC", "Santander"],
 };
 
-const RECOMENDACIONES = [
+export const RECOMENDACIONES = [
   "Zona con buena actividad comercial y potencial para nuevos negocios.",
   "Área con alta densidad de comercios; ideal para servicios complementarios.",
   "Zona en desarrollo con oportunidades de crecimiento comercial.",
