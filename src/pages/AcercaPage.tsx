@@ -12,7 +12,7 @@ export default function AcercaPage() {
     <div className="mx-auto max-w-3xl px-6 py-12 space-y-10">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="font-headline text-3xl font-bold text-foreground mb-2">Acerca del proyecto</h1>
-        <p className="font-body text-muted-foreground">Conoce más sobre Geomarket y cómo puede ayudarte.</p>
+        <p className="font-body text-muted-foreground">Conoce más sobre GeoMarket y cómo puede ayudarte.</p>
       </motion.div>
 
       <div className="space-y-6">
