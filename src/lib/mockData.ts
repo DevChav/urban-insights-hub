@@ -58,7 +58,7 @@ export const RECOMENDACIONES = [
   "Área competitiva; se recomienda un concepto diferenciador.",
 ];
 
-const ANALISIS_POR_TIPO: Record<TipoNegocio, { positivo: string[]; negativo: string[] }> = {
+export const ANALISIS_POR_TIPO: Record<TipoNegocio, { positivo: string[]; negativo: string[] }> = {
   Restaurante: {
     positivo: [
       "La zona presenta alto flujo peatonal y pocos restaurantes directos, lo que representa una oportunidad para captar clientes.",
