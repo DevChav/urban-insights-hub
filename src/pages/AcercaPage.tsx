@@ -30,7 +30,7 @@ export default function AcercaPage() {
 
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
         className="font-body text-xs text-muted-foreground text-center pt-6 border-t border-border">
-        Este es un prototipo interactivo con datos simulados. Desarrollado como demostración de concepto.
+        Prototipo interactivo con datos reales de OpenStreetMap y métricas de tráfico simuladas. Desarrollado como demostración de concepto.
       </motion.p>
     </div>
   );

@@ -42,26 +42,28 @@ const AnalyzePage = () => {
       }).addTo(map);
 
       const group = L.layerGroup();
-      const data = generateMockData(lat, lng, tipoNegocio);
-      data.negocios.forEach((n) => {
-        const icon = L.divIcon({
-          className: "business-marker",
-          html: `<div style="background:hsl(214 100% 40%);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)">${n.nombre.charAt(0)}</div>`,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        });
-        L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
-      });
-      group.addTo(map);
-      markersRef.current = group;
 
       setLoading(true);
       setAnalysis(null);
 
-      setTimeout(() => {
+      analyzeZone(lat, lng, tipoNegocio).then((data) => {
+        data.negocios.forEach((n) => {
+          const icon = L.divIcon({
+            className: "business-marker",
+            html: `<div style="background:hsl(214 100% 40%);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)">${n.nombre.charAt(0)}</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          });
+          L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
+        });
+        group.addTo(map);
+        markersRef.current = group;
+
         setAnalysis(data);
         setLoading(false);
-      }, 700);
+      }).catch(() => {
+        setLoading(false);
+      });
     },
     [tipoNegocio]
   );
