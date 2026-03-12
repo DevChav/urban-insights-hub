@@ -4,7 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2 } from "lucide-react";
 import AnalysisPanel from "@/components/analysis/AnalysisPanel";
-import { generateMockData, TIPOS_NEGOCIO, type AnalysisData, type TipoNegocio } from "@/lib/mockData";
+import { TIPOS_NEGOCIO, type AnalysisData, type TipoNegocio } from "@/lib/mockData";
+import { analyzeZone } from "@/lib/analyzeZone";
 import {
   Select,
   SelectContent,
