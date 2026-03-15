@@ -150,9 +150,8 @@ const AnalyzePage = () => {
       <div className="flex-1 relative">
         <div ref={mapRef} className="h-full w-full" />
 
-        {/* Controls overlay */}
-        <div className="absolute top-4 left-4 z-[1000] space-y-3">
-          {/* Business type selector */}
+        {/* Business type selector - top left */}
+        <div className="absolute top-4 left-4 z-[1000]">
           <Select
             value={tipoNegocio ?? ""}
             onValueChange={(v) => setTipoNegocio(v as TipoNegocio)}
@@ -168,26 +167,26 @@ const AnalyzePage = () => {
               ))}
             </SelectContent>
           </Select>
+        </div>
 
-          {/* Radius control */}
-          <div className="bg-card shadow-lg border border-border rounded-md px-4 py-3 w-[240px]">
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-body text-xs text-muted-foreground">Radio de búsqueda</p>
-              <span className="font-headline text-sm font-semibold text-primary">
-                {radiusLabel(radius)}
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={RADIUS_OPTIONS.length - 1}
-              step={1}
-              value={[radiusIndex >= 0 ? radiusIndex : 1]}
-              onValueChange={([i]) => setRadius(RADIUS_OPTIONS[i])}
-            />
-            <div className="flex justify-between mt-1">
-              <span className="font-body text-[10px] text-muted-foreground">200 m</span>
-              <span className="font-body text-[10px] text-muted-foreground">5 km</span>
-            </div>
+        {/* Radius control - top right */}
+        <div className="absolute top-4 right-4 z-[1000] bg-card shadow-lg border border-border rounded-md px-4 py-3 w-[200px]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-body text-xs text-muted-foreground">Radio</p>
+            <span className="font-headline text-sm font-semibold text-primary">
+              {radiusLabel(radius)}
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={RADIUS_OPTIONS.length - 1}
+            step={1}
+            value={[radiusIndex >= 0 ? radiusIndex : 1]}
+            onValueChange={([i]) => setRadius(RADIUS_OPTIONS[i])}
+          />
+          <div className="flex justify-between mt-1">
+            <span className="font-body text-[10px] text-muted-foreground">200 m</span>
+            <span className="font-body text-[10px] text-muted-foreground">5 km</span>
           </div>
         </div>
 
