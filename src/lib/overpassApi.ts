@@ -112,17 +112,4 @@ function getCategoryLabel(cat: Categoria): string {
   return cat === "Otro" ? "Comercio" : cat;
 }
 
-// ── Competition mapping from TipoNegocio → Categoria ──────────
-const TIPO_TO_CATEGORIA: Record<TipoNegocio, Categoria> = {
-  Restaurante: "Restaurante",
-  Cafetería: "Cafetería",
-  "Tienda de ropa": "Tienda",
-  Farmacia: "Farmacia",
-  "Tienda de conveniencia": "Tienda",
-  Barbería: "Barbería",
-  Gimnasio: "Gimnasio",
-};
-
-export function getCompetitionCategory(tipo: TipoNegocio): Categoria {
-  return TIPO_TO_CATEGORIA[tipo];
-}
+// Competition category is now handled by businessCategories.ts
