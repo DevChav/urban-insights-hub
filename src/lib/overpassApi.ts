@@ -3,7 +3,7 @@
  * Fetches actual POIs (points of interest) within a radius of a given coordinate.
  */
 
-import type { TipoNegocio } from "./mockData";
+
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 
