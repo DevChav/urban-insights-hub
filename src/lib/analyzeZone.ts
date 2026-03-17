@@ -1,15 +1,17 @@
 /**
- * Builds an AnalysisData object combining INEGI DENUE + Overpass data.
- * Now uses the hierarchical subcategory system with keyword-based matching.
+ * Builds an AnalysisData object using simulated (mock) data.
+ * Generates realistic random businesses based on the selected subcategory and radius.
  */
 
 import type { AnalysisData, NegocioCercano, FlujoSemanal } from "./mockData";
-import { getCompetitionKeywords, getAnalisisTexts, findSubcategoria } from "./businessCategories";
-import { fetchNearbyPOIs, getNodeName, type OverpassNode } from "./overpassApi";
-import { fetchDenueBusinesses, getDenueName, type DenueEstablishment } from "./inegiApi";
+import { findSubcategoria, getAnalisisTexts, SECTORES } from "./businessCategories";
 
 function rand(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randFloat(min: number, max: number) {
+  return min + Math.random() * (max - min);
 }
 
 // ── Simple in-memory cache ────────────────────────────────────────
@@ -24,38 +26,67 @@ function cacheKey(lat: number, lng: number, subcatId: string, radius: number) {
   return `${lat.toFixed(4)},${lng.toFixed(4)},${subcatId},${radius}`;
 }
 
-/** Check if a business matches the selected subcategory keywords */
-function matchesKeywords(text: string, keywords: string[]): boolean {
-  const lower = text.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw.toLowerCase()));
+// ── Mock business name pools ──────────────────────────────────────
+const MEXICALI_COLONIAS = [
+  "Centro", "Nueva", "Río Nuevo", "Pro-Hogar", "Pueblo Nuevo", "Industrial",
+  "Xochimilco", "González Ortega", "Ex-Ejido Coahuila", "Alamitos", "Calafia",
+  "Los Pinos", "Baja California", "Orizaba", "Independencia", "El Dorado",
+];
+
+const NAME_PREFIXES: Record<string, string[]> = {
+  "Restaurantes": ["La Cocina de", "El Rincón de", "Sabor", "Don", "Casa", "Taquería El", "Mariscos El"],
+  "Cafeterías": ["Café", "Coffee Lab", "Aroma", "El Grano de", "Brew", "La Taza de"],
+  "Postres y snacks": ["Dulce", "Nieves", "Helados", "La Paleta de", "Churros"],
+  "Bares y vida nocturna": ["Bar", "La Cantina", "Pub", "Lounge", "Club"],
+  "Ropa": ["Boutique", "Fashion", "Style", "Urban", "Moda"],
+  "Tecnología": ["TechZone", "Digital", "CompuMax", "GameStore", "CelularFix"],
+  "Tiendas especializadas": ["El Rincón del", "Colección", "Mundo", "La Tienda de"],
+  "Belleza": ["Estética", "Barbería", "Salón", "Studio", "Beauty"],
+  "Salud": ["Consultorio", "Clínica", "Farmacia", "Lab", "Dr."],
+  "Fitness": ["Gym", "CrossFit", "Yoga Studio", "FitLife", "Power"],
+  "Entretenimiento": ["Fun", "Play", "Zona", "Arena", "Game"],
+  "Servicios automotrices": ["AutoService", "Taller", "Car Wash", "LlantaPro", "DetailMaster"],
+  "Negocios fronterizos": ["Express", "Cambio", "Envíos", "Import", "Border"],
+  "Servicios tecnológicos": ["DevLab", "TechSupport", "IT Solutions", "CyberSec", "AutoMex"],
+  "Educación": ["Academia", "Escuela", "Instituto", "Learning", "Tutoring"],
+};
+
+const NAME_SUFFIXES = [
+  "Mexicali", "Cachanilla", "del Valle", "Express", "Premium",
+  "Plus", "Central", "del Norte", "Pro", "MXL",
+];
+
+const BROAD_CATEGORIES = [
+  "Restaurantes", "Cafeterías", "Farmacias", "Comercios",
+  "Fitness", "Belleza", "Educación", "Automotriz", "Servicios", "Otros",
+];
+
+function generateBusinessName(categoryName: string): string {
+  const prefixes = NAME_PREFIXES[categoryName] || NAME_PREFIXES["Restaurantes"];
+  const prefix = prefixes[rand(0, prefixes.length - 1)];
+  const suffix = NAME_SUFFIXES[rand(0, NAME_SUFFIXES.length - 1)];
+  return `${prefix} ${suffix}`;
 }
 
-/** Broad category label from DENUE or Overpass text */
-function broadCategory(text: string): string {
-  const lower = text.toLowerCase();
-  if (["restaurant", "comida", "taco", "mariscos", "sushi", "alimento", "cocina", "food"].some(k => lower.includes(k))) return "Restaurantes";
-  if (["café", "cafetería", "coffee"].some(k => lower.includes(k))) return "Cafeterías";
-  if (["farmacia", "pharmacy", "medicamento"].some(k => lower.includes(k))) return "Farmacias";
-  if (["banco", "bank", "financier"].some(k => lower.includes(k))) return "Bancos";
-  if (["tienda", "shop", "boutique", "ropa", "abarrot"].some(k => lower.includes(k))) return "Comercios";
-  if (["gimnasio", "gym", "fitness"].some(k => lower.includes(k))) return "Fitness";
-  if (["estética", "barbería", "salón", "belleza", "barber"].some(k => lower.includes(k))) return "Belleza";
-  if (["escuela", "academia", "tutoría"].some(k => lower.includes(k))) return "Educación";
-  if (["taller", "autolavado", "llanta", "mecánic"].some(k => lower.includes(k))) return "Automotriz";
+function randomPointInRadius(lat: number, lng: number, radiusM: number): { lat: number; lng: number } {
+  const r = radiusM / 111320;
+  const angle = Math.random() * 2 * Math.PI;
+  const dist = Math.sqrt(Math.random()) * r;
+  return {
+    lat: lat + dist * Math.cos(angle),
+    lng: lng + dist * Math.sin(angle) / Math.cos(lat * Math.PI / 180),
+  };
+}
+
+function getCategoryNameForSubcat(subcatId: string): string {
+  for (const sector of SECTORES) {
+    for (const cat of sector.categorias) {
+      if (cat.subcategorias.some(s => s.id === subcatId)) {
+        return cat.nombre;
+      }
+    }
+  }
   return "Otros";
-}
-
-// ── Scoring ───────────────────────────────────────────────────────
-function computeScore(total: number, competitionCount: number): number {
-  let score = 5;
-  if (total >= 20) score += 2;
-  else if (total >= 10) score += 1;
-  if (competitionCount === 0) score += 2;
-  else if (competitionCount <= 2) score += 1;
-  else if (competitionCount >= 6) score -= 2;
-  else if (competitionCount >= 4) score -= 1;
-  score += (Math.random() - 0.5) * 1.5;
-  return Math.min(10, Math.max(1, Math.round(score * 10) / 10));
 }
 
 // ── Main analysis function ────────────────────────────────────────
@@ -64,75 +95,51 @@ export async function analyzeZone(
   lng: number,
   subcatId: string,
   radius: number = 500,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<AnalysisData> {
   const key = cacheKey(lat, lng, subcatId, radius);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
 
   const subcatInfo = findSubcategoria(subcatId);
-  const keywords = subcatInfo?.keywords ?? [];
   const subcatLabel = subcatInfo?.label ?? subcatId;
+  const categoryName = getCategoryNameForSubcat(subcatId);
 
-  const checkAbort = () => {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  };
+  // Simulate a tiny delay for realism (50-150ms)
+  await new Promise(r => setTimeout(r, rand(50, 150)));
 
-  let negocios: NegocioCercano[] = [];
-  let allBusinessTexts: string[] = [];
-  let source: "inegi" | "overpass" | "fallback" = "fallback";
+  // Generate mock businesses scaled by radius
+  const scaleFactor = radius / 500;
+  const totalCount = rand(Math.round(8 * scaleFactor), Math.round(30 * scaleFactor));
+  const competidoresDirectos = rand(0, Math.min(totalCount, Math.round(6 * scaleFactor)));
 
-  // Try INEGI first
-  try {
-    checkAbort();
-    const denueData = await fetchDenueBusinesses(lat, lng, radius);
-    checkAbort();
-    if (denueData.length > 0) {
-      source = "inegi";
-      allBusinessTexts = denueData.map((est) => `${est.Clase_actividad} ${est.Nombre}`.toLowerCase());
-      negocios = denueData
-        .slice(0, 25)
-        .map((est) => ({
-          nombre: getDenueName(est),
-          tipo: broadCategory(`${est.Clase_actividad} ${est.Nombre}`),
-          lat: parseFloat(est.Latitud),
-          lng: parseFloat(est.Longitud),
-        }));
-    }
-  } catch (err: any) {
-    if (err?.name === "AbortError") throw err;
-    console.warn("INEGI DENUE failed, trying Overpass", err);
+  const negocios: NegocioCercano[] = [];
+
+  // Add direct competitors
+  for (let i = 0; i < Math.min(competidoresDirectos, 15); i++) {
+    const pos = randomPointInRadius(lat, lng, radius);
+    negocios.push({
+      nombre: generateBusinessName(categoryName),
+      tipo: categoryName,
+      lat: pos.lat,
+      lng: pos.lng,
+    });
   }
 
-  // Fallback to Overpass
-  if (source === "fallback") {
-    try {
-      checkAbort();
-      const nodes = await fetchNearbyPOIs(lat, lng, radius);
-      checkAbort();
-      if (nodes.length > 0) {
-        source = "overpass";
-        allBusinessTexts = nodes.map((n) => Object.values(n.tags || {}).join(" ").toLowerCase());
-        negocios = nodes
-          .slice(0, 25)
-          .map((n) => ({
-            nombre: getNodeName(n),
-            tipo: broadCategory(Object.values(n.tags || {}).join(" ")),
-            lat: n.lat,
-            lng: n.lon,
-          }));
-      }
-    } catch (err: any) {
-      if (err?.name === "AbortError") throw err;
-      console.warn("Overpass also failed", err);
-    }
+  // Add other businesses (non-competitors)
+  const otherCount = Math.min(totalCount - competidoresDirectos, 15);
+  for (let i = 0; i < otherCount; i++) {
+    const pos = randomPointInRadius(lat, lng, radius);
+    const randomCat = BROAD_CATEGORIES[rand(0, BROAD_CATEGORIES.length - 1)];
+    negocios.push({
+      nombre: generateBusinessName(randomCat !== categoryName ? randomCat : "Comercios"),
+      tipo: randomCat,
+      lat: pos.lat,
+      lng: pos.lng,
+    });
   }
 
-  // Count competition (how many match selected subcategory keywords)
-  const competidoresDirectos = allBusinessTexts.filter((t) => matchesKeywords(t, keywords)).length;
-  const totalNegocios = negocios.length;
-
-  // Build distribution from actual data
+  // Build distribution
   const distMap = new Map<string, number>();
   negocios.forEach((n) => {
     distMap.set(n.tipo, (distMap.get(n.tipo) || 0) + 1);
@@ -142,10 +149,21 @@ export async function analyzeZone(
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, 6);
 
-  const puntuacion = computeScore(totalNegocios, competidoresDirectos);
-  const nivelActividad: AnalysisData["nivelActividad"] = puntuacion >= 7.5 ? "Alto" : puntuacion >= 5 ? "Medio" : "Bajo";
+  // Scoring
+  let score = 5;
+  if (totalCount >= 20) score += 2;
+  else if (totalCount >= 10) score += 1;
+  if (competidoresDirectos === 0) score += 2;
+  else if (competidoresDirectos <= 2) score += 1;
+  else if (competidoresDirectos >= 6) score -= 2;
+  else if (competidoresDirectos >= 4) score -= 1;
+  score += (Math.random() - 0.5) * 1.5;
+  const puntuacion = Math.min(10, Math.max(1, Math.round(score * 10) / 10));
 
-  const basePeatones = totalNegocios >= 15 ? rand(2500, 5000) : totalNegocios >= 8 ? rand(1200, 3000) : rand(400, 1500);
+  const nivelActividad: AnalysisData["nivelActividad"] =
+    puntuacion >= 7.5 ? "Alto" : puntuacion >= 5 ? "Medio" : "Bajo";
+
+  const basePeatones = totalCount >= 15 ? rand(2500, 5000) : totalCount >= 8 ? rand(1200, 3000) : rand(400, 1500);
   const baseVehicular = rand(Math.round(basePeatones * 0.8), Math.round(basePeatones * 2.5));
 
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -162,7 +180,7 @@ export async function analyzeZone(
     lat,
     lng,
     puntuacion,
-    totalNegocios,
+    totalNegocios: totalCount,
     competidoresDirectos,
     nivelActividad,
     recomendacion,
