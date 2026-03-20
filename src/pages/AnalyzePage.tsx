@@ -34,7 +34,7 @@ class HeatCanvasOverlay extends L.Layer {
   }
 
   onAdd(map: L.Map) {
-    this._map = map;
+    this._mapRef = map;
     this._canvas = L.DomUtil.create("canvas", "heatmap-canvas") as HTMLCanvasElement;
     const pane = map.getPane("overlayPane")!;
     pane.appendChild(this._canvas);
