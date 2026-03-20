@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Building2 } from "lucide-react";
 import AnalysisPanel from "@/components/analysis/AnalysisPanel";
 import BusinessSelector from "@/components/BusinessSelector";
+import HeatmapLegend from "@/components/HeatmapLegend";
 import type { AnalysisData } from "@/lib/mockData";
 import { analyzeZone } from "@/lib/analyzeZone";
+import { generateHeatmapGrid, viabilityColor } from "@/lib/heatmapData";
 import { Slider } from "@/components/ui/slider";
 
 const RADIUS_OPTIONS = [200, 500, 1000, 2000, 5000];
@@ -15,11 +17,99 @@ function radiusLabel(m: number) {
   return m >= 1000 ? `${m / 1000} km` : `${m} m`;
 }
 
+// ── Canvas overlay for the heatmap ───────────────────────────────
+class HeatCanvasOverlay extends L.Layer {
+  private _canvas: HTMLCanvasElement | null = null;
+  private _subcatId: string;
+  private _map: L.Map | null = null;
+
+  constructor(subcatId: string) {
+    super();
+    this._subcatId = subcatId;
+  }
+
+  setSubcatId(id: string) {
+    this._subcatId = id;
+    this._redraw();
+  }
+
+  onAdd(map: L.Map) {
+    this._map = map;
+    this._canvas = L.DomUtil.create("canvas", "heatmap-canvas") as HTMLCanvasElement;
+    const pane = map.getPane("overlayPane")!;
+    pane.appendChild(this._canvas);
+    this._canvas.style.position = "absolute";
+    this._canvas.style.pointerEvents = "none";
+    this._canvas.style.zIndex = "250";
+
+    map.on("moveend zoomend resize", this._redraw, this);
+    this._redraw();
+    return this;
+  }
+
+  onRemove(map: L.Map) {
+    if (this._canvas) {
+      this._canvas.remove();
+      this._canvas = null;
+    }
+    map.off("moveend zoomend resize", this._redraw, this);
+    this._map = null;
+    return this;
+  }
+
+  _redraw = () => {
+    const map = this._map;
+    const canvas = this._canvas;
+    if (!map || !canvas) return;
+
+    const size = map.getSize();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size.x * dpr;
+    canvas.height = size.y * dpr;
+    canvas.style.width = size.x + "px";
+    canvas.style.height = size.y + "px";
+
+    const topLeft = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(canvas, topLeft);
+
+    const ctx = canvas.getContext("2d")!;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, size.x, size.y);
+
+    const bounds = map.getBounds();
+    const gridSize = 28;
+    const points = generateHeatmapGrid(this._subcatId, {
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    }, gridSize);
+
+    // Each point becomes a soft radial gradient circle
+    const cellW = size.x / gridSize;
+    const cellH = size.y / gridSize;
+    const dotRadius = Math.max(cellW, cellH) * 1.2;
+
+    points.forEach((p) => {
+      const px = map.latLngToContainerPoint([p.lat, p.lng]);
+      const grad = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, dotRadius);
+      grad.addColorStop(0, viabilityColor(p.value, 0.45));
+      grad.addColorStop(1, viabilityColor(p.value, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(px.x, px.y, dotRadius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  };
+}
+
+// ── Main page ────────────────────────────────────────────────────
 const AnalyzePage = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const heatLayerRef = useRef<HeatCanvasOverlay | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
@@ -27,6 +117,28 @@ const AnalyzePage = () => {
   const [subcatId, setSubcatId] = useState<string | null>(null);
   const [radius, setRadius] = useState(500);
   const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(null);
+
+  // ── Heatmap: add/update when subcatId changes ──────────────
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!subcatId) {
+      if (heatLayerRef.current) {
+        map.removeLayer(heatLayerRef.current);
+        heatLayerRef.current = null;
+      }
+      return;
+    }
+
+    if (heatLayerRef.current) {
+      heatLayerRef.current.setSubcatId(subcatId);
+    } else {
+      const layer = new HeatCanvasOverlay(subcatId);
+      layer.addTo(map);
+      heatLayerRef.current = layer;
+    }
+  }, [subcatId]);
 
   const runAnalysis = useCallback(
     (lat: number, lng: number, subId: string, r: number) => {
@@ -42,10 +154,11 @@ const AnalyzePage = () => {
 
       circleRef.current = L.circle([lat, lng], {
         radius: r,
-        color: "hsl(214 100% 40%)",
-        fillColor: "hsl(214 100% 40%)",
-        fillOpacity: 0.08,
-        weight: 2,
+        color: "hsl(216 48% 19%)",
+        fillColor: "hsl(216 48% 19%)",
+        fillOpacity: 0.06,
+        weight: 1.5,
+        dashArray: "6 4",
       }).addTo(map);
 
       setLoading(true);
@@ -58,9 +171,9 @@ const AnalyzePage = () => {
           data.negocios.forEach((n) => {
             const icon = L.divIcon({
               className: "business-marker",
-              html: `<div style="background:hsl(214 100% 40%);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.25)">${n.nombre.charAt(0)}</div>`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12],
+              html: `<div style="background:hsl(216 48% 19%);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2);border:2px solid #fff">${n.nombre.charAt(0)}</div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
             });
             L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
           });
@@ -123,7 +236,7 @@ const AnalyzePage = () => {
         </div>
 
         {/* Radius control - top right */}
-        <div className="absolute top-4 right-4 z-[1000] bg-card shadow-lg border border-border rounded-md px-4 py-3 w-[200px]">
+        <div className="absolute top-4 right-4 z-[1000] bg-card/90 backdrop-blur-sm shadow-lg border border-border rounded-lg px-4 py-3 w-[200px]">
           <div className="flex items-center justify-between mb-2">
             <p className="font-body text-xs text-muted-foreground">Radio</p>
             <span className="font-headline text-sm font-semibold text-primary">{radiusLabel(radius)}</span>
@@ -140,6 +253,9 @@ const AnalyzePage = () => {
             <span className="font-body text-[10px] text-muted-foreground">5 km</span>
           </div>
         </div>
+
+        {/* Heatmap legend - top center (only when subcategory selected) */}
+        {subcatId && <HeatmapLegend />}
 
         <AnimatePresence>
           {!subcatId && (
