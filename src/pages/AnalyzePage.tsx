@@ -19,8 +19,8 @@ function radiusLabel(m: number) {
 
 // ── Canvas overlay for the heatmap ───────────────────────────────
 class HeatCanvasOverlay extends L.Layer {
-  private _canvas: HTMLCanvasElement | null = null;
-  private _subcatId: string;
+  _canvas: HTMLCanvasElement | null = null;
+  _subcatId: string;
   private _map: L.Map | null = null;
 
   constructor(subcatId: string) {
