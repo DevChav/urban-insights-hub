@@ -58,7 +58,7 @@ class HeatCanvasOverlay extends L.Layer {
   }
 
   _redraw = () => {
-    const map = this._map;
+    const map = this._mapRef;
     const canvas = this._canvas;
     if (!map || !canvas) return;
 
