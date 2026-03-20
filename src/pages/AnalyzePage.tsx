@@ -17,90 +17,109 @@ function radiusLabel(m: number) {
   return m >= 1000 ? `${m / 1000} km` : `${m} m`;
 }
 
-// ── Canvas overlay for the heatmap ───────────────────────────────
-class HeatCanvasOverlay extends L.Layer {
-  _canvas: HTMLCanvasElement | null = null;
-  _subcatId: string;
-  _mapRef: L.Map | null = null;
+// ── Canvas-based heatmap layer ──────────────────────────────────
+// Renders a single <canvas> with overlapping radial gradients for a
+// smooth, DiDi-style demand visualization. Strictly one instance at a time.
+
+class HeatCanvas extends L.Layer {
+  _el: HTMLCanvasElement | null = null;
+  _host: L.Map | null = null;
+  _subcat: string;
+  _raf = 0;
 
   constructor(subcatId: string) {
     super();
-    this._subcatId = subcatId;
+    this._subcat = subcatId;
   }
 
-  setSubcatId(id: string) {
-    this._subcatId = id;
-    this._redraw();
+  update(subcatId: string) {
+    this._subcat = subcatId;
+    this._scheduleRedraw();
   }
 
   onAdd(map: L.Map) {
-    this._mapRef = map;
-    this._canvas = L.DomUtil.create("canvas", "heatmap-canvas") as HTMLCanvasElement;
-    const pane = map.getPane("overlayPane")!;
-    pane.appendChild(this._canvas);
-    this._canvas.style.position = "absolute";
-    this._canvas.style.pointerEvents = "none";
-    this._canvas.style.zIndex = "250";
+    this._host = map;
+    const canvas = document.createElement("canvas");
+    canvas.style.position = "absolute";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "250";
+    canvas.className = "gm-heat-canvas";
+    map.getPane("overlayPane")!.appendChild(canvas);
+    this._el = canvas;
 
-    map.on("moveend zoomend resize", this._redraw, this);
-    this._redraw();
+    map.on("moveend", this._scheduleRedraw, this);
+    map.on("zoomend", this._scheduleRedraw, this);
+    map.on("resize", this._scheduleRedraw, this);
+    this._draw();
     return this;
   }
 
   onRemove(map: L.Map) {
-    if (this._canvas) {
-      this._canvas.remove();
-      this._canvas = null;
-    }
-    map.off("moveend zoomend resize", this._redraw, this);
-    this._mapRef = null;
+    cancelAnimationFrame(this._raf);
+    map.off("moveend", this._scheduleRedraw, this);
+    map.off("zoomend", this._scheduleRedraw, this);
+    map.off("resize", this._scheduleRedraw, this);
+    this._el?.remove();
+    this._el = null;
+    this._host = null;
     return this;
   }
 
-  _redraw = () => {
-    const map = this._mapRef;
-    const canvas = this._canvas;
-    if (!map || !canvas) return;
+  _scheduleRedraw = () => {
+    cancelAnimationFrame(this._raf);
+    this._raf = requestAnimationFrame(() => this._draw());
+  };
+
+  _draw() {
+    const map = this._host;
+    const c = this._el;
+    if (!map || !c) return;
 
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = size.x * dpr;
-    canvas.height = size.y * dpr;
-    canvas.style.width = size.x + "px";
-    canvas.style.height = size.y + "px";
+    c.width = size.x * dpr;
+    c.height = size.y * dpr;
+    c.style.width = `${size.x}px`;
+    c.style.height = `${size.y}px`;
 
-    const topLeft = map.containerPointToLayerPoint([0, 0]);
-    L.DomUtil.setPosition(canvas, topLeft);
+    const origin = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(c, origin);
 
-    const ctx = canvas.getContext("2d")!;
+    const ctx = c.getContext("2d")!;
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, size.x, size.y);
 
+    // Use screen blending for natural color overlap (like DiDi)
+    ctx.globalCompositeOperation = "screen";
+
     const bounds = map.getBounds();
-    const gridSize = 28;
-    const points = generateHeatmapGrid(this._subcatId, {
+    const GRID = 36;
+    const points = generateHeatmapGrid(this._subcat, {
       north: bounds.getNorth(),
       south: bounds.getSouth(),
       east: bounds.getEast(),
       west: bounds.getWest(),
-    }, gridSize);
+    }, GRID);
 
-    // Each point becomes a soft radial gradient circle
-    const cellW = size.x / gridSize;
-    const cellH = size.y / gridSize;
-    const dotRadius = Math.max(cellW, cellH) * 1.2;
+    const cellW = size.x / GRID;
+    const cellH = size.y / GRID;
+    const radius = Math.max(cellW, cellH) * 1.6;
 
-    points.forEach((p) => {
+    for (const p of points) {
       const px = map.latLngToContainerPoint([p.lat, p.lng]);
-      const grad = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, dotRadius);
-      grad.addColorStop(0, viabilityColor(p.value, 0.45));
-      grad.addColorStop(1, viabilityColor(p.value, 0));
-      ctx.fillStyle = grad;
+      const g = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, radius);
+      g.addColorStop(0, viabilityColor(p.value, 0.42));
+      g.addColorStop(0.5, viabilityColor(p.value, 0.18));
+      g.addColorStop(1, viabilityColor(p.value, 0));
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(px.x, px.y, dotRadius, 0, Math.PI * 2);
+      ctx.arc(px.x, px.y, radius, 0, Math.PI * 2);
       ctx.fill();
-    });
-  };
+    }
+
+    // Reset composite
+    ctx.globalCompositeOperation = "source-over";
+  }
 }
 
 // ── Main page ────────────────────────────────────────────────────
@@ -109,7 +128,7 @@ const AnalyzePage = () => {
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
-  const heatLayerRef = useRef<HeatCanvasOverlay | null>(null);
+  const heatRef = useRef<HeatCanvas | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
@@ -118,25 +137,27 @@ const AnalyzePage = () => {
   const [radius, setRadius] = useState(500);
   const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(null);
 
-  // ── Heatmap: add/update when subcatId changes ──────────────
+  // ── Heatmap lifecycle — strictly one layer ─────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
     if (!subcatId) {
-      if (heatLayerRef.current) {
-        map.removeLayer(heatLayerRef.current);
-        heatLayerRef.current = null;
+      // Remove existing
+      if (heatRef.current) {
+        map.removeLayer(heatRef.current);
+        heatRef.current = null;
       }
       return;
     }
 
-    if (heatLayerRef.current) {
-      heatLayerRef.current.setSubcatId(subcatId);
+    if (heatRef.current) {
+      // Update existing layer in-place (no remove/add flicker)
+      heatRef.current.update(subcatId);
     } else {
-      const layer = new HeatCanvasOverlay(subcatId);
+      const layer = new HeatCanvas(subcatId);
       layer.addTo(map);
-      heatLayerRef.current = layer;
+      heatRef.current = layer;
     }
   }, [subcatId]);
 
@@ -146,9 +167,10 @@ const AnalyzePage = () => {
       if (!map) return;
 
       abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
 
+      // Clean previous point-specific layers
       if (circleRef.current) { map.removeLayer(circleRef.current); circleRef.current = null; }
       if (markersRef.current) { map.removeLayer(markersRef.current); markersRef.current = null; }
 
@@ -164,9 +186,9 @@ const AnalyzePage = () => {
       setLoading(true);
       setAnalysis(null);
 
-      analyzeZone(lat, lng, subId, r, controller.signal)
+      analyzeZone(lat, lng, subId, r, ctrl.signal)
         .then((data) => {
-          if (controller.signal.aborted) return;
+          if (ctrl.signal.aborted) return;
           const group = L.layerGroup();
           data.negocios.forEach((n) => {
             const icon = L.divIcon({
@@ -187,36 +209,41 @@ const AnalyzePage = () => {
           setLoading(false);
         });
     },
-    []
+    [],
   );
 
-  // Refs for map click handler
-  const runAnalysisRef = useRef(runAnalysis);
-  runAnalysisRef.current = runAnalysis;
-  const subcatRef = useRef(subcatId);
-  subcatRef.current = subcatId;
-  const radiusRef = useRef(radius);
-  radiusRef.current = radius;
+  // Stable refs for the map click handler
+  const runRef = useRef(runAnalysis);
+  runRef.current = runAnalysis;
+  const subRef = useRef(subcatId);
+  subRef.current = subcatId;
+  const radRef = useRef(radius);
+  radRef.current = radius;
 
+  // Map init — once
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
-    const map = L.map(mapRef.current, { center: [32.6245, -115.4523], zoom: 14, zoomControl: false });
+    const map = L.map(mapRef.current, {
+      center: [32.6245, -115.4523],
+      zoom: 14,
+      zoomControl: false,
+    });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     map.on("click", (e: L.LeafletMouseEvent) => {
-      const sub = subcatRef.current;
+      const sub = subRef.current;
       if (!sub) return;
       const { lat, lng } = e.latlng;
       setSelectedPoint({ lat, lng });
-      runAnalysisRef.current(lat, lng, sub, radiusRef.current);
+      runRef.current(lat, lng, sub, radRef.current);
     });
     mapInstanceRef.current = map;
     return () => { map.remove(); mapInstanceRef.current = null; };
   }, []);
 
-  // Re-analyze on radius or subcategory change
+  // Re-analyze when radius or subcategory changes (if a point is selected)
   useEffect(() => {
     if (selectedPoint && subcatId) {
       runAnalysis(selectedPoint.lat, selectedPoint.lng, subcatId, radius);
@@ -230,12 +257,12 @@ const AnalyzePage = () => {
       <div className="flex-1 relative">
         <div ref={mapRef} className="h-full w-full" />
 
-        {/* Business selector - top left */}
+        {/* Business selector — top left */}
         <div className="absolute top-4 left-4 z-[1000]">
           <BusinessSelector value={subcatId} onChange={setSubcatId} />
         </div>
 
-        {/* Radius control - top right */}
+        {/* Radius control — top right */}
         <div className="absolute top-4 right-4 z-[1000] bg-card/90 backdrop-blur-sm shadow-lg border border-border rounded-lg px-4 py-3 w-[200px]">
           <div className="flex items-center justify-between mb-2">
             <p className="font-body text-xs text-muted-foreground">Radio</p>
@@ -254,21 +281,25 @@ const AnalyzePage = () => {
           </div>
         </div>
 
-        {/* Heatmap legend - top center (only when subcategory selected) */}
+        {/* Heatmap legend — bottom left, no overlap with other controls */}
         {subcatId && <HeatmapLegend />}
 
         <AnimatePresence>
           {!subcatId && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-lg px-5 py-3 shadow-lg">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-lg px-5 py-3 shadow-lg"
+            >
               <p className="font-body text-sm text-muted-foreground">
                 Selecciona el sector, categoría y subcategoría del negocio que deseas abrir
               </p>
             </motion.div>
           )}
           {subcatId && !analysis && !loading && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-lg px-5 py-3 shadow-lg">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-lg px-5 py-3 shadow-lg"
+            >
               <p className="font-body text-sm text-muted-foreground">
                 Haz clic en cualquier punto del mapa para analizar la zona
               </p>
