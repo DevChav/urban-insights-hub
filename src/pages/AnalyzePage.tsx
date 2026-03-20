@@ -53,7 +53,7 @@ class HeatCanvasOverlay extends L.Layer {
       this._canvas = null;
     }
     map.off("moveend zoomend resize", this._redraw, this);
-    this._map = null;
+    this._mapRef = null;
     return this;
   }
 
