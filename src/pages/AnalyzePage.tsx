@@ -7,125 +7,56 @@ import AnalysisPanel from "@/components/analysis/AnalysisPanel";
 import ComparisonPanel from "@/components/analysis/ComparisonPanel";
 import HistoryPanel, { type HistoryEntry } from "@/components/analysis/HistoryPanel";
 import BusinessSelector from "@/components/BusinessSelector";
-import HeatmapLegend from "@/components/HeatmapLegend";
 import type { AnalysisData } from "@/lib/mockData";
 import { analyzeZone } from "@/lib/analyzeZone";
-import { generateHeatmapGrid, viabilityColor } from "@/lib/heatmapData";
 import { Slider } from "@/components/ui/slider";
 
 const RADIUS_OPTIONS = [200, 500, 1000, 2000, 5000];
+const STORAGE_KEY = "geomarket_state";
 
 function radiusLabel(m: number) {
   return m >= 1000 ? `${m / 1000} km` : `${m} m`;
 }
 
-// ── Canvas heatmap layer ────────────────────────────────────────
-class HeatCanvas extends L.Layer {
-  _el: HTMLCanvasElement | null = null;
-  _host: L.Map | null = null;
-  _subcat: string;
-  _raf = 0;
+// ── Persistence helpers ─────────────────────────────────────────
+interface PersistedState {
+  subcatId: string | null;
+  radius: number;
+  selectedPoint: { lat: number; lng: number } | null;
+  analysis: AnalysisData | null;
+  history: HistoryEntry[];
+}
 
-  constructor(subcatId: string) {
-    super();
-    this._subcat = subcatId;
-  }
+function loadState(): Partial<PersistedState> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
 
-  update(subcatId: string) {
-    this._subcat = subcatId;
-    this._scheduleRedraw();
-  }
-
-  onAdd(map: L.Map) {
-    this._host = map;
-    const canvas = document.createElement("canvas");
-    canvas.style.position = "absolute";
-    canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "250";
-    canvas.className = "gm-heat-canvas";
-    map.getPane("overlayPane")!.appendChild(canvas);
-    this._el = canvas;
-    map.on("moveend", this._scheduleRedraw, this);
-    map.on("zoomend", this._scheduleRedraw, this);
-    map.on("resize", this._scheduleRedraw, this);
-    this._draw();
-    return this;
-  }
-
-  onRemove(map: L.Map) {
-    cancelAnimationFrame(this._raf);
-    map.off("moveend", this._scheduleRedraw, this);
-    map.off("zoomend", this._scheduleRedraw, this);
-    map.off("resize", this._scheduleRedraw, this);
-    this._el?.remove();
-    this._el = null;
-    this._host = null;
-    return this;
-  }
-
-  _scheduleRedraw = () => {
-    cancelAnimationFrame(this._raf);
-    this._raf = requestAnimationFrame(() => this._draw());
-  };
-
-  _draw() {
-    const map = this._host;
-    const c = this._el;
-    if (!map || !c) return;
-    const size = map.getSize();
-    const dpr = window.devicePixelRatio || 1;
-    c.width = size.x * dpr;
-    c.height = size.y * dpr;
-    c.style.width = `${size.x}px`;
-    c.style.height = `${size.y}px`;
-    const origin = map.containerPointToLayerPoint([0, 0]);
-    L.DomUtil.setPosition(c, origin);
-    const ctx = c.getContext("2d")!;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, size.x, size.y);
-    ctx.globalCompositeOperation = "screen";
-    const bounds = map.getBounds();
-    const GRID = 36;
-    const points = generateHeatmapGrid(this._subcat, {
-      north: bounds.getNorth(), south: bounds.getSouth(),
-      east: bounds.getEast(), west: bounds.getWest(),
-    }, GRID);
-    const cellW = size.x / GRID;
-    const cellH = size.y / GRID;
-    const radius = Math.max(cellW, cellH) * 1.6;
-    for (const p of points) {
-      const px = map.latLngToContainerPoint([p.lat, p.lng]);
-      const g = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, radius);
-      g.addColorStop(0, viabilityColor(p.value, 0.42));
-      g.addColorStop(0.5, viabilityColor(p.value, 0.18));
-      g.addColorStop(1, viabilityColor(p.value, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(px.x, px.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = "source-over";
-  }
+function saveState(s: PersistedState) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
 }
 
 type PanelMode = "analysis" | "comparison" | "history";
 
 // ── Main page ────────────────────────────────────────────────────
 const AnalyzePage = () => {
+  const persisted = useRef(loadState());
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const circleCompRef = useRef<L.Circle | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const markerCompRef = useRef<L.Marker | null>(null);
-  const heatRef = useRef<HeatCanvas | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(persisted.current.analysis ?? null);
   const [loading, setLoading] = useState(false);
-  const [subcatId, setSubcatId] = useState<string | null>(null);
-  const [radius, setRadius] = useState(500);
-  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [subcatId, setSubcatId] = useState<string | null>(persisted.current.subcatId ?? null);
+  const [radius, setRadius] = useState(persisted.current.radius ?? 500);
+  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(persisted.current.selectedPoint ?? null);
 
   // Comparison
   const [compareMode, setCompareMode] = useState(false);
@@ -133,27 +64,15 @@ const AnalyzePage = () => {
   const [compPoint, setCompPoint] = useState<{ lat: number; lng: number } | null>(null);
 
   // History
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(persisted.current.history ?? []);
 
   // Panel mode
   const [panelMode, setPanelMode] = useState<PanelMode>("analysis");
 
-  // ── Heatmap lifecycle ─────────────────────────────────────────
+  // ── Persist state on changes ──────────────────────────────────
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    if (!subcatId) {
-      if (heatRef.current) { map.removeLayer(heatRef.current); heatRef.current = null; }
-      return;
-    }
-    if (heatRef.current) {
-      heatRef.current.update(subcatId);
-    } else {
-      const layer = new HeatCanvas(subcatId);
-      layer.addTo(map);
-      heatRef.current = layer;
-    }
-  }, [subcatId]);
+    saveState({ subcatId, radius, selectedPoint, analysis, history });
+  }, [subcatId, radius, selectedPoint, analysis, history]);
 
   // ── Add to history ────────────────────────────────────────────
   const addToHistory = useCallback((data: AnalysisData) => {
@@ -161,6 +80,34 @@ const AnalyzePage = () => {
       const entry: HistoryEntry = { id: `${Date.now()}-${Math.random()}`, data, timestamp: Date.now() };
       return [entry, ...prev].slice(0, 20);
     });
+  }, []);
+
+  // ── Draw point layers (circle + business markers) ─────────────
+  const drawPointLayers = useCallback((map: L.Map, data: AnalysisData, r: number) => {
+    if (circleRef.current) { map.removeLayer(circleRef.current); circleRef.current = null; }
+    if (markersRef.current) { map.removeLayer(markersRef.current); markersRef.current = null; }
+
+    circleRef.current = L.circle([data.lat, data.lng], {
+      radius: r,
+      color: "hsl(214, 100%, 40%)",
+      fillColor: "hsl(214, 100%, 40%)",
+      fillOpacity: 0.06,
+      weight: 1.5,
+      dashArray: "6 4",
+    }).addTo(map);
+
+    const group = L.layerGroup();
+    data.negocios.forEach((n) => {
+      const icon = L.divIcon({
+        className: "business-marker",
+        html: `<div style="background:hsl(214, 100%, 40%);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2);border:2px solid #fff">${n.nombre.charAt(0)}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+      L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
+    });
+    group.addTo(map);
+    markersRef.current = group;
   }, []);
 
   // ── Run analysis ──────────────────────────────────────────────
@@ -191,18 +138,7 @@ const AnalyzePage = () => {
 
         analyzeZone(lat, lng, subId, r, ctrl.signal).then((data) => {
           if (ctrl.signal.aborted) return;
-          const group = L.layerGroup();
-          data.negocios.forEach((n) => {
-            const icon = L.divIcon({
-              className: "business-marker",
-              html: `<div style="background:hsl(214, 100%, 40%);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2);border:2px solid #fff">${n.nombre.charAt(0)}</div>`,
-              iconSize: [22, 22],
-              iconAnchor: [11, 11],
-            });
-            L.marker([n.lat, n.lng], { icon }).bindTooltip(n.nombre).addTo(group);
-          });
-          group.addTo(map);
-          markersRef.current = group;
+          drawPointLayers(map, data, r);
           setAnalysis(data);
           setLoading(false);
           addToHistory(data);
@@ -212,7 +148,6 @@ const AnalyzePage = () => {
           setLoading(false);
         });
       } else {
-        // Comparison point
         if (circleCompRef.current) { map.removeLayer(circleCompRef.current); circleCompRef.current = null; }
         if (markerCompRef.current) { map.removeLayer(markerCompRef.current); markerCompRef.current = null; }
 
@@ -240,7 +175,7 @@ const AnalyzePage = () => {
         });
       }
     },
-    [addToHistory],
+    [addToHistory, drawPointLayers],
   );
 
   // Stable refs
@@ -255,11 +190,15 @@ const AnalyzePage = () => {
   const analysisRef = useRef(analysis);
   analysisRef.current = analysis;
 
-  // Map init
+  // Map init + restore persisted state
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
+
+    const savedPoint = persisted.current.selectedPoint;
+    const center: [number, number] = savedPoint ? [savedPoint.lat, savedPoint.lng] : [32.6245, -115.4523];
+
     const map = L.map(mapRef.current, {
-      center: [32.6245, -115.4523],
+      center,
       zoom: 14,
       zoomControl: false,
     });
@@ -267,26 +206,37 @@ const AnalyzePage = () => {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
+
     map.on("click", (e: L.LeafletMouseEvent) => {
       const sub = subRef.current;
       if (!sub) return;
       const { lat, lng } = e.latlng;
 
       if (compModeRef.current && analysisRef.current) {
-        // Second click in compare mode
         setCompPoint({ lat, lng });
         runRef.current(lat, lng, sub, radRef.current, true);
       } else {
         setSelectedPoint({ lat, lng });
-        // Reset comparison
         setComparisonData(null);
         setCompPoint(null);
         runRef.current(lat, lng, sub, radRef.current, false);
       }
     });
+
     mapInstanceRef.current = map;
+
+    // Restore previous analysis layers
+    const savedAnalysis = persisted.current.analysis;
+    const savedRadius = persisted.current.radius ?? 500;
+    if (savedPoint && savedAnalysis) {
+      // Small delay to let map render
+      requestAnimationFrame(() => {
+        drawPointLayers(map, savedAnalysis, savedRadius);
+      });
+    }
+
     return () => { map.remove(); mapInstanceRef.current = null; };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-analyze on radius/subcat change
   useEffect(() => {
@@ -297,7 +247,6 @@ const AnalyzePage = () => {
 
   const radiusIndex = RADIUS_OPTIONS.indexOf(radius);
 
-  // Clear comparison layers
   const clearComparison = useCallback(() => {
     const map = mapInstanceRef.current;
     if (map) {
@@ -310,15 +259,15 @@ const AnalyzePage = () => {
     setPanelMode("analysis");
   }, []);
 
-  // History handlers
   const handleHistorySelect = useCallback((entry: HistoryEntry) => {
     const map = mapInstanceRef.current;
     if (!map) return;
     map.setView([entry.data.lat, entry.data.lng], 14, { animate: true });
     setSelectedPoint({ lat: entry.data.lat, lng: entry.data.lng });
     setAnalysis(entry.data);
+    drawPointLayers(map, entry.data, radius);
     setPanelMode("analysis");
-  }, []);
+  }, [radius, drawPointLayers]);
 
   const handleHistoryRemove = useCallback((id: string) => {
     setHistory(prev => prev.filter(e => e.id !== id));
@@ -391,9 +340,6 @@ const AnalyzePage = () => {
           </div>
         </div>
 
-        {/* Heatmap legend */}
-        {subcatId && <HeatmapLegend />}
-
         {/* Compare mode indicator */}
         <AnimatePresence>
           {compareMode && analysis && !comparisonData && (
@@ -404,9 +350,7 @@ const AnalyzePage = () => {
               className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground rounded-xl px-5 py-3 shadow-xl flex items-center gap-2"
             >
               <GitCompareArrows className="h-4 w-4" />
-              <p className="font-body text-sm font-medium">
-                Haz clic en otro punto para comparar
-              </p>
+              <p className="font-body text-sm font-medium">Haz clic en otro punto para comparar</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -430,7 +374,7 @@ const AnalyzePage = () => {
               className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-xl px-5 py-3 shadow-lg"
             >
               <p className="font-body text-sm text-muted-foreground flex items-center gap-2">
-                <MapPinIcon className="h-4 w-4 text-primary" />
+                <ChevronRight className="h-4 w-4 text-primary" />
                 Haz clic en cualquier punto del mapa para analizar la zona
               </p>
             </motion.div>
@@ -482,15 +426,6 @@ const AnalyzePage = () => {
     </div>
   );
 };
-
-function MapPinIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
 
 function SkeletonPanel() {
   return (
