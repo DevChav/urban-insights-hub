@@ -20,7 +20,7 @@ function radiusLabel(m: number) {
 
 // ── Persistence helpers ─────────────────────────────────────────
 interface PersistedState {
-  subcatId: string | null;
+  subcatId?: string | null;
   radius: number;
   selectedPoint: { lat: number; lng: number } | null;
   analysis: AnalysisData | null;
@@ -42,8 +42,6 @@ type PanelMode = "analysis" | "comparison" | "history";
 
 // ── Main page ────────────────────────────────────────────────────
 const AnalyzePage = () => {
-  const persisted = useRef(loadState());
-
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
@@ -52,11 +50,11 @@ const AnalyzePage = () => {
   const markerCompRef = useRef<L.Marker | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const [analysis, setAnalysis] = useState<AnalysisData | null>(persisted.current.analysis ?? null);
+  const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [subcatId, setSubcatId] = useState<string | null>(persisted.current.subcatId ?? null);
-  const [radius, setRadius] = useState(persisted.current.radius ?? 500);
-  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(persisted.current.selectedPoint ?? null);
+  const [subcatId, setSubcatId] = useState<string | null>(null);
+  const [radius, setRadius] = useState(500);
+  const [selectedPoint, setSelectedPoint] = useState(null);
 
   // Comparison
   const [compareMode, setCompareMode] = useState(false);
@@ -64,15 +62,24 @@ const AnalyzePage = () => {
   const [compPoint, setCompPoint] = useState<{ lat: number; lng: number } | null>(null);
 
   // History
-  const [history, setHistory] = useState<HistoryEntry[]>(persisted.current.history ?? []);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   // Panel mode
   const [panelMode, setPanelMode] = useState<PanelMode>("analysis");
+  
+  useEffect(() => {
+    localStorage.clear();
+  }, []);
+
+  useEffect(() => {
+    setSelectedPoint(null);
+    setAnalysis(null);
+  }, [subcatId]);
 
   // ── Persist state on changes ──────────────────────────────────
   useEffect(() => {
-    saveState({ subcatId, radius, selectedPoint, analysis, history });
-  }, [subcatId, radius, selectedPoint, analysis, history]);
+    saveState({radius, selectedPoint, analysis, history});
+  }, [radius, selectedPoint, analysis, history]);
 
   // ── Add to history ────────────────────────────────────────────
   const addToHistory = useCallback((data: AnalysisData) => {
@@ -194,7 +201,7 @@ const AnalyzePage = () => {
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const savedPoint = persisted.current.selectedPoint;
+    const savedPoint = null;
     const center: [number, number] = savedPoint ? [savedPoint.lat, savedPoint.lng] : [32.6245, -115.4523];
 
     const map = L.map(mapRef.current, {
@@ -226,8 +233,8 @@ const AnalyzePage = () => {
     mapInstanceRef.current = map;
 
     // Restore previous analysis layers
-    const savedAnalysis = persisted.current.analysis;
-    const savedRadius = persisted.current.radius ?? 500;
+    const savedAnalysis = null;
+    const savedRadius = 500;
     if (savedPoint && savedAnalysis) {
       // Small delay to let map render
       requestAnimationFrame(() => {
