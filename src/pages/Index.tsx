@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MapPin, BarChart3, Building2, Target } from "lucide-react";
 
 const features = [
-  { icon: MapPin, title: "Ubicación estratégica", desc: "Analiza cualquier zona comercial en el mapa de forma interactiva." },
+  { icon: MapPin, title: "PRUEBA estratégica", desc: "Analiza cualquier zona comercial en el mapa de forma interactiva." },
   { icon: BarChart3, title: "Datos en tiempo real", desc: "Consulta métricas de actividad comercial y densidad de negocios." },
   { icon: Building2, title: "Negocios cercanos", desc: "Descubre qué tipo de comercios operan cerca de tu ubicación." },
   { icon: Target, title: "Puntuación inteligente", desc: "Recibe una calificación del 1 al 10 sobre el potencial de la zona." },
