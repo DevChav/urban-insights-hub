@@ -3,8 +3,8 @@
  * Generates realistic random businesses based on the selected subcategory and radius.
  */
 
-import type { AnalysisData, NegocioCercano, FlujoSemanal } from "./mockData";
-import { findSubcategoria, getAnalisisTexts, SECTORES } from "./businessCategories";
+import type { AnalysisData } from "./mockData";
+import { SECTORES } from "./businessCategories";
 
 function rand(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
