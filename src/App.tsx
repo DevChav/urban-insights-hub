@@ -40,6 +40,14 @@ const App = () => (
               path="/dashboard"
               element={
                 <ProtectedRoute requireEmpresa>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mapa"
+              element={
+                <ProtectedRoute requireEmpresa>
                   <AnalyzePage />
                 </ProtectedRoute>
               }
