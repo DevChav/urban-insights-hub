@@ -35,10 +35,10 @@ export default function Index() {
             Explora zonas comerciales, descubre negocios cercanos y evalúa el potencial de cualquier ubicación antes de abrir tu negocio.
           </p>
           <button
-            onClick={() => navigate("/analizar")}
+            onClick={() => navigate("/login")}
             className="font-headline font-medium text-base px-8 py-3 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
           >
-            Analizar una zona
+            Comenzar ahora
           </button>
         </motion.div>
       </section>
