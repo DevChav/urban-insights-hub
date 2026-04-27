@@ -9,6 +9,7 @@ import Navbar from "@/components/Navbar";
 import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
 import RegistroEmpresaPage from "./pages/RegistroEmpresaPage";
+import DashboardPage from "./pages/DashboardPage";
 import AnalyzePage from "./pages/AnalyzePage";
 import EstadisticasPage from "./pages/EstadisticasPage";
 import AcercaPage from "./pages/AcercaPage";
