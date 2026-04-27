@@ -10,7 +10,7 @@ const publicLinks = [
 
 const privateLinks = [
   { to: "/dashboard", label: "Dashboard" },
-  { to: "/analizar", label: "Mapa de análisis" },
+  { to: "/mapa", label: "Validar ubicación" },
   { to: "/estadisticas", label: "Estadísticas" },
 ];
 

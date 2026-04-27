@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords } from "lucide-react";
+import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords, UsersRound } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { AnalysisData } from "@/lib/mockData";
 
@@ -138,6 +138,46 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
             </span>
           </div>
         </motion.div>
+
+        {/* Demografía de la zona */}
+        {data.demografia && (
+          <motion.div custom={4.5} variants={cv} initial="hidden" animate="visible"
+            className="rounded-lg border border-border bg-background p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <UsersRound className="h-4 w-4 text-primary" />
+              <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">Demografía de la zona</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-md bg-muted/40 p-3">
+                <p className="font-headline text-xl font-bold text-foreground">{data.demografia.poblacionTotal.toLocaleString("es-MX")}</p>
+                <p className="font-body text-[11px] text-muted-foreground">Habitantes</p>
+              </div>
+              <div className="rounded-md bg-muted/40 p-3">
+                <p className="font-headline text-xl font-bold text-foreground">${data.demografia.ingresoPromedioMensual.toLocaleString("es-MX")}</p>
+                <p className="font-body text-[11px] text-muted-foreground">Ingreso prom. / mes</p>
+              </div>
+            </div>
+            <div className="mb-3">
+              <div className="flex justify-between text-[11px] font-body text-muted-foreground mb-1">
+                <span>Hombres {Math.round((data.demografia.porGenero.hombres / data.demografia.poblacionTotal) * 100)}%</span>
+                <span>Mujeres {Math.round((data.demografia.porGenero.mujeres / data.demografia.poblacionTotal) * 100)}%</span>
+              </div>
+              <div className="flex h-2 rounded-full overflow-hidden bg-muted">
+                <div style={{ width: `${(data.demografia.porGenero.hombres / data.demografia.poblacionTotal) * 100}%`, background: "hsl(214 100% 40%)" }} />
+                <div style={{ width: `${(data.demografia.porGenero.mujeres / data.demografia.poblacionTotal) * 100}%`, background: "hsl(330 70% 60%)" }} />
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={110}>
+              <BarChart data={data.demografia.porEdad} barSize={26}>
+                <XAxis dataKey="rango" tick={{ fontSize: 10, fill: "hsl(216 20% 50%)" }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(216 14% 89%)", fontSize: 12 }} cursor={{ fill: "hsl(210 25% 96%)" }}
+                  formatter={(v: number) => [v.toLocaleString("es-MX"), "Personas"]} />
+                <Bar dataKey="cantidad" radius={[4, 4, 0, 0]} fill="hsl(214 70% 55%)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </motion.div>
+        )}
 
         {/* Recommendation */}
         <motion.div custom={5} variants={cv} initial="hidden" animate="visible"

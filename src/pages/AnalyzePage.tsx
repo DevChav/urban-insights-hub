@@ -2,97 +2,70 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, GitCompareArrows, Clock, ChevronRight } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { Building2, Search, Loader2, ArrowLeft, Briefcase } from "lucide-react";
 import AnalysisPanel from "@/components/analysis/AnalysisPanel";
-import ComparisonPanel from "@/components/analysis/ComparisonPanel";
-import HistoryPanel, { type HistoryEntry } from "@/components/analysis/HistoryPanel";
-import BusinessSelector from "@/components/BusinessSelector";
 import type { AnalysisData } from "@/lib/mockData";
 import { analyzeZone } from "@/lib/analyzeZone";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
+import { scianDeSubcat } from "@/lib/cityStats";
+import { getLastZone, setLastZone, getMapState, setMapState } from "@/lib/zoneStorage";
+import { MEXICALI_CENTER } from "@/lib/denueData";
 
-const RADIUS_OPTIONS = [200, 500, 1000, 2000, 5000];
-const STORAGE_KEY = "geomarket_state";
+const RADIUS_OPTIONS = [200, 500, 1000, 2000];
 
 function radiusLabel(m: number) {
   return m >= 1000 ? `${m / 1000} km` : `${m} m`;
 }
 
-// ── Persistence helpers ─────────────────────────────────────────
-interface PersistedState {
-  subcatId?: string | null;
-  radius: number;
-  selectedPoint: { lat: number; lng: number } | null;
-  analysis: AnalysisData | null;
-  history: HistoryEntry[];
-}
-
-function loadState(): Partial<PersistedState> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-function saveState(s: PersistedState) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
-}
-
-type PanelMode = "analysis" | "comparison" | "history";
-
-// ── Main page ────────────────────────────────────────────────────
 const AnalyzePage = () => {
+  const { user, empresa, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
-  const circleCompRef = useRef<L.Circle | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
-  const markerCompRef = useRef<L.Marker | null>(null);
+  const pointMarkerRef = useRef<L.Marker | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const [analysis, setAnalysis] = useState(null);
+  const persisted = getMapState();
+  const lastZone = getLastZone();
+
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(lastZone);
   const [loading, setLoading] = useState(false);
-  const [subcatId, setSubcatId] = useState<string | null>(null);
-  const [radius, setRadius] = useState(500);
-  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [radius, setRadius] = useState<number>(persisted.radius ?? 500);
+  const [selectedPoint, setSelectedPoint] = useState<{ lat: number; lng: number } | null>(
+    lastZone ? { lat: lastZone.lat, lng: lastZone.lng } : null,
+  );
 
-  // Comparison
-  const [compareMode, setCompareMode] = useState(false);
-  const [comparisonData, setComparisonData] = useState<AnalysisData | null>(null);
-  const [compPoint, setCompPoint] = useState<{ lat: number; lng: number } | null>(null);
+  // Geocoder
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
 
-  // History
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-
-  // Panel mode
-  const [panelMode, setPanelMode] = useState<PanelMode>("analysis");
-  
+  // Persist radius/center
   useEffect(() => {
-    localStorage.clear();
-  }, []);
-
-  useEffect(() => {
-    setSelectedPoint(null);
-    setAnalysis(null);
-  }, [subcatId]);
-
-  // ── Persist state on changes ──────────────────────────────────
-  useEffect(() => {
-    saveState({radius, selectedPoint, analysis, history});
-  }, [radius, selectedPoint, analysis, history]);
-
-  // ── Add to history ────────────────────────────────────────────
-  const addToHistory = useCallback((data: AnalysisData) => {
-    setHistory(prev => {
-      const entry: HistoryEntry = { id: `${Date.now()}-${Math.random()}`, data, timestamp: Date.now() };
-      return [entry, ...prev].slice(0, 20);
+    setMapState({
+      radius,
+      center: mapInstanceRef.current
+        ? { lat: mapInstanceRef.current.getCenter().lat, lng: mapInstanceRef.current.getCenter().lng }
+        : undefined,
+      zoom: mapInstanceRef.current?.getZoom(),
     });
-  }, []);
+  }, [radius]);
 
-  // ── Draw point layers (circle + business markers) ─────────────
-  const drawPointLayers = useCallback((map: L.Map, data: AnalysisData, r: number) => {
+  // Persist last zone
+  useEffect(() => {
+    if (analysis) setLastZone(analysis);
+  }, [analysis]);
+
+  const drawLayers = useCallback((map: L.Map, data: AnalysisData, r: number) => {
     if (circleRef.current) { map.removeLayer(circleRef.current); circleRef.current = null; }
     if (markersRef.current) { map.removeLayer(markersRef.current); markersRef.current = null; }
+    if (pointMarkerRef.current) { map.removeLayer(pointMarkerRef.current); pointMarkerRef.current = null; }
 
     circleRef.current = L.circle([data.lat, data.lng], {
       radius: r,
@@ -102,6 +75,14 @@ const AnalyzePage = () => {
       weight: 1.5,
       dashArray: "6 4",
     }).addTo(map);
+
+    const pinIcon = L.divIcon({
+      className: "selected-pin",
+      html: `<div style="background:hsl(214, 100%, 40%);width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>`,
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
+    });
+    pointMarkerRef.current = L.marker([data.lat, data.lng], { icon: pinIcon }).addTo(map);
 
     const group = L.layerGroup();
     data.negocios.forEach((n) => {
@@ -117,187 +98,173 @@ const AnalyzePage = () => {
     markersRef.current = group;
   }, []);
 
-  // ── Run analysis ──────────────────────────────────────────────
   const runAnalysis = useCallback(
-    (lat: number, lng: number, subId: string, r: number, isComparison = false) => {
+    (lat: number, lng: number, r: number) => {
       const map = mapInstanceRef.current;
-      if (!map) return;
+      const subId = empresa?.subcatId;
+      if (!map || !subId) return;
 
-      if (!isComparison) {
-        abortRef.current?.abort();
-        const ctrl = new AbortController();
-        abortRef.current = ctrl;
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
 
-        if (circleRef.current) { map.removeLayer(circleRef.current); circleRef.current = null; }
-        if (markersRef.current) { map.removeLayer(markersRef.current); markersRef.current = null; }
+      // Limpiar capas previas inmediatamente
+      if (circleRef.current) { map.removeLayer(circleRef.current); circleRef.current = null; }
+      if (markersRef.current) { map.removeLayer(markersRef.current); markersRef.current = null; }
+      if (pointMarkerRef.current) { map.removeLayer(pointMarkerRef.current); pointMarkerRef.current = null; }
 
-        circleRef.current = L.circle([lat, lng], {
-          radius: r,
-          color: "hsl(214, 100%, 40%)",
-          fillColor: "hsl(214, 100%, 40%)",
-          fillOpacity: 0.06,
-          weight: 1.5,
-          dashArray: "6 4",
-        }).addTo(map);
+      circleRef.current = L.circle([lat, lng], {
+        radius: r,
+        color: "hsl(214, 100%, 40%)",
+        fillColor: "hsl(214, 100%, 40%)",
+        fillOpacity: 0.06,
+        weight: 1.5,
+        dashArray: "6 4",
+      }).addTo(map);
 
-        setLoading(true);
-        setAnalysis(null);
-
-        analyzeZone(lat, lng, subId, r, ctrl.signal).then((data) => {
+      setLoading(true);
+      analyzeZone(lat, lng, subId, r, ctrl.signal)
+        .then((data) => {
           if (ctrl.signal.aborted) return;
-          drawPointLayers(map, data, r);
+          drawLayers(map, data, r);
           setAnalysis(data);
           setLoading(false);
-          addToHistory(data);
-          setPanelMode("analysis");
-        }).catch((err) => {
-          if (err?.name === "AbortError") return;
-          setLoading(false);
-        });
-      } else {
-        if (circleCompRef.current) { map.removeLayer(circleCompRef.current); circleCompRef.current = null; }
-        if (markerCompRef.current) { map.removeLayer(markerCompRef.current); markerCompRef.current = null; }
-
-        circleCompRef.current = L.circle([lat, lng], {
-          radius: r,
-          color: "hsl(0, 84%, 60%)",
-          fillColor: "hsl(0, 84%, 60%)",
-          fillOpacity: 0.06,
-          weight: 1.5,
-          dashArray: "6 4",
-        }).addTo(map);
-
-        const compIcon = L.divIcon({
-          className: "comp-marker",
-          html: `<div style="background:hsl(0, 84%, 60%);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff">B</div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
-        });
-        markerCompRef.current = L.marker([lat, lng], { icon: compIcon }).addTo(map);
-
-        analyzeZone(lat, lng, subId, r).then((data) => {
-          setComparisonData(data);
-          addToHistory(data);
-          setPanelMode("comparison");
-        });
-      }
+        })
+        .catch(() => setLoading(false));
     },
-    [addToHistory, drawPointLayers],
+    [empresa?.subcatId, drawLayers],
   );
 
-  // Stable refs
   const runRef = useRef(runAnalysis);
   runRef.current = runAnalysis;
-  const subRef = useRef(subcatId);
-  subRef.current = subcatId;
   const radRef = useRef(radius);
   radRef.current = radius;
-  const compModeRef = useRef(compareMode);
-  compModeRef.current = compareMode;
-  const analysisRef = useRef(analysis);
-  analysisRef.current = analysis;
 
-  // Map init + restore persisted state
+  // Map init
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const savedPoint = null;
-    const center: [number, number] = savedPoint ? [savedPoint.lat, savedPoint.lng] : [32.6245, -115.4523];
+    const start = persisted.center ?? (lastZone ? { lat: lastZone.lat, lng: lastZone.lng } : MEXICALI_CENTER);
+    const startZoom = persisted.zoom ?? 14;
 
     const map = L.map(mapRef.current, {
-      center,
-      zoom: 14,
+      center: [start.lat, start.lng],
+      zoom: startZoom,
       zoomControl: false,
     });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      attribution: '&copy; OpenStreetMap',
     }).addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
 
     map.on("click", (e: L.LeafletMouseEvent) => {
-      const sub = subRef.current;
-      if (!sub) return;
       const { lat, lng } = e.latlng;
+      setSelectedPoint({ lat, lng });
+      runRef.current(lat, lng, radRef.current);
+    });
 
-      if (compModeRef.current && analysisRef.current) {
-        setCompPoint({ lat, lng });
-        runRef.current(lat, lng, sub, radRef.current, true);
-      } else {
-        setSelectedPoint({ lat, lng });
-        setComparisonData(null);
-        setCompPoint(null);
-        runRef.current(lat, lng, sub, radRef.current, false);
-      }
+    map.on("moveend", () => {
+      setMapState({
+        radius: radRef.current,
+        center: { lat: map.getCenter().lat, lng: map.getCenter().lng },
+        zoom: map.getZoom(),
+      });
     });
 
     mapInstanceRef.current = map;
 
     // Restore previous analysis layers
-    const savedAnalysis = null;
-    const savedRadius = 500;
-    if (savedPoint && savedAnalysis) {
-      // Small delay to let map render
-      requestAnimationFrame(() => {
-        drawPointLayers(map, savedAnalysis, savedRadius);
-      });
+    if (lastZone) {
+      requestAnimationFrame(() => drawLayers(map, lastZone, persisted.radius ?? 500));
     }
 
     return () => { map.remove(); mapInstanceRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Re-analyze on radius/subcat change
+  // Re-analyze on radius change
   useEffect(() => {
-    if (selectedPoint && subcatId) {
-      runAnalysis(selectedPoint.lat, selectedPoint.lng, subcatId, radius, false);
+    if (selectedPoint && empresa?.subcatId) {
+      runAnalysis(selectedPoint.lat, selectedPoint.lng, radius);
     }
-  }, [radius, subcatId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radius]);
 
   const radiusIndex = RADIUS_OPTIONS.indexOf(radius);
 
-  const clearComparison = useCallback(() => {
-    const map = mapInstanceRef.current;
-    if (map) {
-      if (circleCompRef.current) { map.removeLayer(circleCompRef.current); circleCompRef.current = null; }
-      if (markerCompRef.current) { map.removeLayer(markerCompRef.current); markerCompRef.current = null; }
+  // ── Geocoder (Nominatim) ─────────────────────────────────────
+  const handleSearch = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const q = encodeURIComponent(`${searchQuery}, Mexicali, Baja California, México`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+      const data = await res.json();
+      if (data?.[0]) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        const map = mapInstanceRef.current;
+        if (map) {
+          map.setView([lat, lng], 16, { animate: true });
+          setSelectedPoint({ lat, lng });
+          runRef.current(lat, lng, radRef.current);
+        }
+      }
+    } finally {
+      setSearching(false);
     }
-    setComparisonData(null);
-    setCompPoint(null);
-    setCompareMode(false);
-    setPanelMode("analysis");
-  }, []);
+  }, [searchQuery]);
 
-  const handleHistorySelect = useCallback((entry: HistoryEntry) => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    map.setView([entry.data.lat, entry.data.lng], 14, { animate: true });
-    setSelectedPoint({ lat: entry.data.lat, lng: entry.data.lng });
-    setAnalysis(entry.data);
-    drawPointLayers(map, entry.data, radius);
-    setPanelMode("analysis");
-  }, [radius, drawPointLayers]);
-
-  const handleHistoryRemove = useCallback((id: string) => {
-    setHistory(prev => prev.filter(e => e.id !== id));
-  }, []);
-
-  const handleHistoryClear = useCallback(() => setHistory([]), []);
+  if (authLoading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!empresa) return <Navigate to="/registro-empresa" replace />;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden">
+      {/* Mapa */}
       <div className="flex-1 relative">
         <div ref={mapRef} className="h-full w-full" />
 
-        {/* Business selector — top left */}
-        <div className="absolute top-4 left-4 z-[1000]">
-          <BusinessSelector value={subcatId} onChange={setSubcatId} />
+        {/* Top bar: back + búsqueda + giro */}
+        <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-col md:flex-row gap-2 md:items-start">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="bg-card/90 backdrop-blur-sm shadow-md shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
+          </Button>
+
+          <form onSubmit={handleSearch} className="flex-1 max-w-md flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar dirección o colonia en Mexicali…"
+                className="pl-9 bg-card/95 backdrop-blur-sm shadow-md"
+              />
+            </div>
+            <Button type="submit" size="sm" disabled={searching || !searchQuery.trim()}>
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+            </Button>
+          </form>
+
+          <div className="hidden md:flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border border-border rounded-md px-3 py-1.5 shadow-md">
+            <Briefcase className="h-3.5 w-3.5 text-primary" />
+            <span className="font-body text-xs text-foreground font-medium truncate max-w-[180px]">
+              {empresa.nombre}
+            </span>
+          </div>
         </div>
 
-        {/* Right controls — top right */}
-        <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
-          {/* Radius */}
-          <div className="bg-card/90 backdrop-blur-sm shadow-lg border border-border rounded-xl px-4 py-3 w-[200px]">
+        {/* Radio control */}
+        <div className="absolute bottom-6 left-4 z-[1000]">
+          <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-xl px-4 py-3 w-[260px]">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-body text-xs text-muted-foreground">Radio</p>
+              <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">Radio de análisis</p>
               <span className="font-headline text-sm font-semibold text-primary">{radiusLabel(radius)}</span>
             </div>
             <Slider
@@ -307,125 +274,51 @@ const AnalyzePage = () => {
               value={[radiusIndex >= 0 ? radiusIndex : 1]}
               onValueChange={([i]) => setRadius(RADIUS_OPTIONS[i])}
             />
-            <div className="flex justify-between mt-1">
-              <span className="font-body text-[10px] text-muted-foreground">200 m</span>
-              <span className="font-body text-[10px] text-muted-foreground">5 km</span>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                if (compareMode) clearComparison();
-                else setCompareMode(true);
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-body font-medium shadow-lg border transition-all duration-200 ${
-                compareMode
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card/90 backdrop-blur-sm text-foreground border-border hover:border-primary/40"
-              }`}
-            >
-              <GitCompareArrows className="h-3.5 w-3.5" />
-              {compareMode ? "Cancelar" : "Comparar"}
-            </button>
-            <button
-              onClick={() => setPanelMode(panelMode === "history" ? "analysis" : "history")}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-body font-medium shadow-lg border transition-all duration-200 ${
-                panelMode === "history"
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card/90 backdrop-blur-sm text-foreground border-border hover:border-primary/40"
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              {history.length > 0 && (
-                <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0 text-[10px] font-bold">
-                  {history.length}
+            <div className="flex justify-between mt-1.5">
+              {RADIUS_OPTIONS.map((r) => (
+                <span key={r} className="font-body text-[10px] text-muted-foreground">
+                  {radiusLabel(r)}
                 </span>
-              )}
-            </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Compare mode indicator */}
+        {/* Hint */}
         <AnimatePresence>
-          {compareMode && analysis && !comparisonData && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground rounded-xl px-5 py-3 shadow-xl flex items-center gap-2"
-            >
-              <GitCompareArrows className="h-4 w-4" />
-              <p className="font-body text-sm font-medium">Haz clic en otro punto para comparar</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Instructions */}
-        <AnimatePresence>
-          {!subcatId && (
+          {!analysis && !loading && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-xl px-5 py-3 shadow-lg"
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground rounded-xl px-5 py-3 shadow-xl"
             >
-              <p className="font-body text-sm text-muted-foreground flex items-center gap-2">
-                <ChevronRight className="h-4 w-4 text-primary" />
-                Selecciona el tipo de negocio para comenzar
-              </p>
-            </motion.div>
-          )}
-          {subcatId && !analysis && !loading && !compareMode && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card border border-border rounded-xl px-5 py-3 shadow-lg"
-            >
-              <p className="font-body text-sm text-muted-foreground flex items-center gap-2">
-                <ChevronRight className="h-4 w-4 text-primary" />
-                Haz clic en cualquier punto del mapa para analizar la zona
+              <p className="font-body text-sm font-medium flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Busca una dirección o haz clic en el mapa para validar la ubicación
               </p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Side Panel */}
+      {/* Side panel */}
       <div className="w-[420px] h-full bg-card border-l border-border flex flex-col overflow-hidden">
         <AnimatePresence mode="wait">
-          {panelMode === "history" ? (
-            <HistoryPanel
-              key="history"
-              entries={history}
-              onSelect={handleHistorySelect}
-              onRemove={handleHistoryRemove}
-              onClear={handleHistoryClear}
-              onClose={() => setPanelMode("analysis")}
-            />
-          ) : panelMode === "comparison" && analysis && comparisonData ? (
-            <ComparisonPanel
-              key="comparison"
-              dataA={analysis}
-              dataB={comparisonData}
-              onClose={clearComparison}
-            />
-          ) : (
-            <motion.div key="main" className="flex flex-col h-full"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {!analysis && !loading && (
-                <div className="flex-1 flex items-center justify-center p-6">
-                  <div className="text-center">
-                    <Building2 className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                    <p className="font-headline text-lg font-semibold text-foreground mb-1">Sin ubicación seleccionada</p>
-                    <p className="font-body text-sm text-muted-foreground">
-                      {subcatId
-                        ? "Selecciona un punto en el mapa para comenzar el análisis"
-                        : "Selecciona un tipo de negocio y luego haz clic en el mapa"}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {loading && <SkeletonPanel />}
-              {analysis && !loading && <AnalysisPanel data={analysis} />}
+          {!analysis && !loading && (
+            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="flex-1 flex items-center justify-center p-6">
+              <div className="text-center">
+                <Building2 className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+                <p className="font-headline text-lg font-semibold text-foreground mb-1">Sin ubicación seleccionada</p>
+                <p className="font-body text-sm text-muted-foreground">
+                  Validamos automáticamente para tu giro: <span className="text-primary font-medium">{empresa.nombre}</span>
+                </p>
+              </div>
+            </motion.div>
+          )}
+          {loading && <SkeletonPanel key="skeleton" />}
+          {analysis && !loading && (
+            <motion.div key="panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
+              <AnalysisPanel data={analysis} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -436,11 +329,16 @@ const AnalyzePage = () => {
 
 function SkeletonPanel() {
   return (
-    <div className="p-5 space-y-4">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="skeleton-block h-20 w-full rounded-lg bg-muted animate-pulse" />
-      ))}
-    </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4 p-5">
+      <div className="h-20 rounded-lg bg-muted animate-pulse" />
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+        ))}
+      </div>
+      <div className="h-32 rounded-lg bg-muted animate-pulse" />
+      <div className="h-40 rounded-lg bg-muted animate-pulse" />
+    </motion.div>
   );
 }
 
