@@ -6,6 +6,7 @@
 import type { AnalysisData, FlujoSemanal, NegocioCercano, DemografiaZona } from "./mockData";
 import { SECTORES } from "./businessCategories";
 import { getDenueByScian, getDenueDataset, haversine, zonaDeCoordenada } from "./denueData";
+import { estimarRenta } from "./rentaZona";
 
 function findSubcat(subcatId: string) {
   for (const s of SECTORES) {
