@@ -6,12 +6,18 @@ export interface MockUser {
   createdAt: string;
 }
 
+export type TamanoEmpresa = "micro" | "pequena" | "mediana";
+
 export interface Empresa {
   nombre: string;
+  duenoNombre: string;
   sectorId: string;
   categoriaId: string;
   subcatId: string;
   scian?: string;
+  tamano: TamanoEmpresa;
+  presupuestoMin: number;
+  presupuestoMax: number;
   ideaNegocio?: string;
   consultoria?: ConsultoriaResult;
   createdAt: string;
