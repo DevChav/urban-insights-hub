@@ -102,7 +102,8 @@ function rand(min: number, max: number) {
 
 export async function generarConsultoria(
   subcatId: string,
-  ideaNegocio: string
+  ideaNegocio: string,
+  ctx: ConsultoriaContext = {},
 ): Promise<ConsultoriaResult> {
   // Simulate processing time
   await new Promise((r) => setTimeout(r, 1400 + Math.random() * 800));
@@ -111,9 +112,18 @@ export async function generarConsultoria(
   const sectorId = found?.sectorId ?? "otros-sectores";
   const profile = PROFILES[sectorId] ?? PROFILES["otros-sectores"];
 
+  // Tamaño multiplica la inversión base
+  const tamanoFactor = ctx.tamano === "mediana" ? 2.4 : ctx.tamano === "pequena" ? 1.5 : 1;
   const variation = rand(0.85, 1.15);
-  const inversionMin = Math.round((profile.base[0] * variation) / 1000) * 1000;
-  const inversionMax = Math.round((profile.base[1] * variation) / 1000) * 1000;
+  let inversionMin = Math.round((profile.base[0] * variation * tamanoFactor) / 1000) * 1000;
+  let inversionMax = Math.round((profile.base[1] * variation * tamanoFactor) / 1000) * 1000;
+
+  // Si hay presupuesto, ajusta el resultado para mantenerlo dentro del rango realista
+  if (ctx.presupuestoMin && ctx.presupuestoMax) {
+    inversionMin = Math.max(inversionMin, Math.round(ctx.presupuestoMin * 0.9));
+    inversionMax = Math.min(Math.max(inversionMax, ctx.presupuestoMax), Math.round(ctx.presupuestoMax * 1.15));
+    if (inversionMax < inversionMin) inversionMax = Math.round(inversionMin * 1.3);
+  }
   const promedio = (inversionMin + inversionMax) / 2;
 
   const desglose = profile.desglose.map((d) => ({
@@ -130,7 +140,16 @@ export async function generarConsultoria(
       ? "Tu idea tiene una base sólida; conviene reforzar el diferenciador competitivo en Mexicali."
       : "Recomendamos ampliar la descripción del concepto para evaluar mejor el posicionamiento.";
 
-  const resumen = `Para abrir un negocio del rubro "${subcatNombre}" en Mexicali, B.C., se estima una inversión inicial entre $${inversionMin.toLocaleString("es-MX")} y $${inversionMax.toLocaleString("es-MX")} MXN. ${enfoque} Considera el clima extremo de la región (impacto en climatización) y la dinámica fronteriza al definir horarios y estrategia de precios.`;
+  const tamanoLabel =
+    ctx.tamano === "mediana" ? "mediana empresa (51+ empleados)" :
+    ctx.tamano === "pequena" ? "pequeña empresa (11–50 empleados)" :
+    ctx.tamano ? "microempresa (1–10 empleados)" : null;
+
+  const presupuestoFrase = ctx.presupuestoMin && ctx.presupuestoMax
+    ? ` Tu presupuesto declarado ($${ctx.presupuestoMin.toLocaleString("es-MX")}–$${ctx.presupuestoMax.toLocaleString("es-MX")} MXN) ${ctx.presupuestoMax < inversionMax ? "queda por debajo del promedio del sector; será necesario optimizar costos o buscar financiamiento" : "es competitivo para el sector"}.`
+    : "";
+
+  const resumen = `Para ${tamanoLabel ? `una ${tamanoLabel} del rubro` : "abrir un negocio del rubro"} "${subcatNombre}" en Mexicali, B.C., se estima una inversión inicial entre $${inversionMin.toLocaleString("es-MX")} y $${inversionMax.toLocaleString("es-MX")} MXN.${presupuestoFrase} ${enfoque} Considera el clima extremo de la región (impacto en climatización) y la dinámica fronteriza al definir horarios y estrategia de precios.`;
 
   return {
     inversionMin,
