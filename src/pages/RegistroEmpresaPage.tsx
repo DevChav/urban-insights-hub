@@ -1,15 +1,16 @@
 import { useState, useMemo } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, Sparkles, Loader2, CheckCircle2, ArrowRight, ArrowLeft, DollarSign, ListChecks } from "lucide-react";
+import { Building2, Sparkles, Loader2, CheckCircle2, ArrowRight, ArrowLeft, DollarSign, ListChecks, User, Users } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BusinessSelector from "@/components/BusinessSelector";
 import { SECTORES } from "@/lib/businessCategories";
 import { generarConsultoria } from "@/lib/consultoriaIA";
-import type { ConsultoriaResult } from "@/lib/auth";
+import type { ConsultoriaResult, TamanoEmpresa } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 
 function findContext(subcatId: string) {
@@ -22,23 +23,44 @@ function findContext(subcatId: string) {
   return null;
 }
 
+const PRESUPUESTOS: { id: string; label: string; min: number; max: number }[] = [
+  { id: "muy-bajo", label: "Menos de $100,000 MXN", min: 50_000, max: 100_000 },
+  { id: "bajo", label: "$100,000 – $300,000 MXN", min: 100_000, max: 300_000 },
+  { id: "medio", label: "$300,000 – $700,000 MXN", min: 300_000, max: 700_000 },
+  { id: "alto", label: "$700,000 – $1,500,000 MXN", min: 700_000, max: 1_500_000 },
+  { id: "muy-alto", label: "Más de $1,500,000 MXN", min: 1_500_000, max: 3_000_000 },
+];
+
 export default function RegistroEmpresaPage() {
   const { user, empresa, saveEmpresa, loading } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<1 | 2>(1);
+  const [duenoNombre, setDuenoNombre] = useState(empresa?.duenoNombre ?? "");
   const [nombre, setNombre] = useState(empresa?.nombre ?? "");
   const [subcatId, setSubcatId] = useState<string | null>(empresa?.subcatId ?? null);
+  const [tamano, setTamano] = useState<TamanoEmpresa>(empresa?.tamano ?? "micro");
+  const [presupuestoId, setPresupuestoId] = useState<string>(() => {
+    if (!empresa) return "bajo";
+    const match = PRESUPUESTOS.find((p) => p.min === empresa.presupuestoMin && p.max === empresa.presupuestoMax);
+    return match?.id ?? "bajo";
+  });
   const [idea, setIdea] = useState(empresa?.ideaNegocio ?? "");
   const [analizando, setAnalizando] = useState(false);
   const [resultado, setResultado] = useState<ConsultoriaResult | null>(empresa?.consultoria ?? null);
 
   const ctx = useMemo(() => (subcatId ? findContext(subcatId) : null), [subcatId]);
+  const presupuesto = useMemo(() => PRESUPUESTOS.find((p) => p.id === presupuestoId)!, [presupuestoId]);
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
 
-  const canContinue = nombre.trim().length >= 2 && subcatId;
+  const canContinue =
+    duenoNombre.trim().length >= 2 &&
+    nombre.trim().length >= 2 &&
+    !!subcatId &&
+    !!tamano &&
+    !!presupuesto;
 
   const handleAnalizar = async () => {
     if (!subcatId || idea.trim().length < 15) {
@@ -48,7 +70,7 @@ export default function RegistroEmpresaPage() {
     setAnalizando(true);
     setResultado(null);
     try {
-      const r = await generarConsultoria(subcatId, idea);
+      const r = await generarConsultoria(subcatId, idea, { tamano, presupuestoMin: presupuesto.min, presupuestoMax: presupuesto.max });
       setResultado(r);
     } finally {
       setAnalizando(false);
@@ -59,10 +81,14 @@ export default function RegistroEmpresaPage() {
     if (!ctx || !subcatId) return;
     saveEmpresa({
       nombre: nombre.trim(),
+      duenoNombre: duenoNombre.trim(),
       sectorId: ctx.sectorId,
       categoriaId: ctx.categoriaId,
       subcatId,
       scian: ctx.scian,
+      tamano,
+      presupuestoMin: presupuesto.min,
+      presupuestoMax: presupuesto.max,
       ideaNegocio: idea.trim() || undefined,
       consultoria: resultado ?? undefined,
       createdAt: empresa?.createdAt ?? new Date().toISOString(),
@@ -114,9 +140,29 @@ export default function RegistroEmpresaPage() {
               </div>
 
               <div className="space-y-5">
-                <div>
-                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Nombre de la empresa</label>
-                  <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Tacos La Cachanilla" maxLength={80} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-body text-sm font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-primary" /> Nombre del dueño
+                    </label>
+                    <Input
+                      value={duenoNombre}
+                      onChange={(e) => setDuenoNombre(e.target.value)}
+                      placeholder="Ej. Alexander Pérez"
+                      maxLength={80}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-body text-sm font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-primary" /> Nombre comercial
+                    </label>
+                    <Input
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Ej. GeoCafé"
+                      maxLength={80}
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -128,6 +174,53 @@ export default function RegistroEmpresaPage() {
                       Código SCIAN: <span className="font-mono text-foreground">{ctx.scian}</span>
                     </p>
                   )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-body text-sm font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-primary" /> Tamaño de la empresa
+                    </label>
+                    <Select value={tamano} onValueChange={(v) => setTamano(v as TamanoEmpresa)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="micro">Micro (1–10 empleados)</SelectItem>
+                        <SelectItem value="pequena">Pequeña (11–50 empleados)</SelectItem>
+                        <SelectItem value="mediana">Mediana (51+ empleados)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="font-body text-sm font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+                      <DollarSign className="h-3.5 w-3.5 text-primary" /> Presupuesto estimado
+                    </label>
+                    <Select value={presupuestoId} onValueChange={setPresupuestoId}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRESUPUESTOS.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-body text-sm font-medium text-foreground mb-1.5 block">Descripción del negocio</label>
+                  <p className="font-body text-xs text-muted-foreground mb-2">La IA usará esta descripción para personalizar las recomendaciones.</p>
+                  <Textarea
+                    value={idea}
+                    onChange={(e) => setIdea(e.target.value)}
+                    placeholder="Ej. Cafetería de especialidad enfocada a oficinistas de la zona Justo Sierra, con servicio rápido en barra y delivery..."
+                    rows={4}
+                    maxLength={1000}
+                    className="resize-none"
+                  />
+                  <p className="font-body text-xs text-muted-foreground mt-1">{idea.length}/1000 caracteres</p>
                 </div>
               </div>
 
@@ -154,15 +247,19 @@ export default function RegistroEmpresaPage() {
                 </div>
                 <div>
                   <h1 className="font-headline text-2xl font-bold text-foreground">Consultor de negocios IA</h1>
-                  <p className="font-body text-sm text-muted-foreground">Describe tu idea y recibe una estimación inicial.</p>
+                  <p className="font-body text-sm text-muted-foreground">Analiza tu idea con base en tu tamaño y presupuesto.</p>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/30 p-4 mb-4 text-sm font-body text-muted-foreground">
+                <span className="text-foreground font-medium">{nombre}</span> · {tamano === "micro" ? "Micro" : tamano === "pequena" ? "Pequeña" : "Mediana"} empresa · Presupuesto {presupuesto.label}
               </div>
 
               <Textarea
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
-                placeholder="Ej. Quiero abrir una taquería estilo norteño con servicio rápido enfocada a oficinistas, abierta de 7am a 5pm..."
-                rows={5}
+                placeholder="Describe tu idea de negocio con más detalle..."
+                rows={4}
                 maxLength={1000}
                 className="resize-none"
               />
@@ -198,7 +295,6 @@ export default function RegistroEmpresaPage() {
                     transition={{ duration: 0.4 }}
                     className="mt-6 space-y-4"
                   >
-                    {/* Resumen */}
                     <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                       <div className="flex items-start gap-2">
                         <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -209,7 +305,6 @@ export default function RegistroEmpresaPage() {
                       </div>
                     </div>
 
-                    {/* Inversión */}
                     <div className="rounded-xl border border-border bg-background p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <DollarSign className="h-4 w-4 text-primary" />
@@ -229,7 +324,6 @@ export default function RegistroEmpresaPage() {
                       </div>
                     </div>
 
-                    {/* Críticos */}
                     <div className="rounded-xl border border-border bg-background p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <ListChecks className="h-4 w-4 text-primary" />
