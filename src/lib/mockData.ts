@@ -37,6 +37,16 @@ export interface DemografiaZona {
   ingresoPromedioMensual: number; // MXN
 }
 
+// ── Costo de renta estimado ─────────────────────────────────────
+export interface RentData {
+  min: number;
+  max: number;
+  promedio: number;
+  nivel: "Alta" | "Media-Alta" | "Media" | "Baja";
+  zonaComercial: string;
+  descripcion: string;
+}
+
 export interface AnalysisData {
   lat: number;
   lng: number;
@@ -56,6 +66,7 @@ export interface AnalysisData {
   negocios: NegocioCercano[];
   distribucion: { nombre: string; cantidad: number }[];
   demografia: DemografiaZona;
+  renta: RentData;
   timestamp: number;
 }
 

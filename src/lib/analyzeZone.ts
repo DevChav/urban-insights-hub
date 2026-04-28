@@ -6,6 +6,7 @@
 import type { AnalysisData, FlujoSemanal, NegocioCercano, DemografiaZona } from "./mockData";
 import { SECTORES } from "./businessCategories";
 import { getDenueByScian, getDenueDataset, haversine, zonaDeCoordenada } from "./denueData";
+import { estimarRenta } from "./rentaZona";
 
 function findSubcat(subcatId: string) {
   for (const s of SECTORES) {
@@ -169,6 +170,7 @@ export async function analyzeZone(
     promedioPeatones > 1800 ? "Alto" : promedioPeatones > 900 ? "Medio" : "Bajo";
 
   const demografia = buildDemografia(rng, radius);
+  const renta = estimarRenta(lat, lng);
 
   return {
     lat,
@@ -189,6 +191,7 @@ export async function analyzeZone(
     negocios,
     distribucion,
     demografia,
+    renta,
     timestamp: Date.now(),
   };
 }
