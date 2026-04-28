@@ -53,6 +53,36 @@ export default function AnalysisPanel({ data }: { data: AnalysisData }) {
       </motion.div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        {/* Costo de renta estimado */}
+        {data.renta && (
+          <motion.div custom={0.5} variants={cv} initial="hidden" animate="visible"
+            className="rounded-lg border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 p-4">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <Home className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="font-body text-[11px] uppercase tracking-wider text-primary font-medium">Costo estimado de renta</p>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                    {data.renta.nivel}
+                  </span>
+                </div>
+                <p className="font-headline text-2xl font-bold text-foreground tabular-nums">
+                  ${data.renta.min.toLocaleString("es-MX")} – ${data.renta.max.toLocaleString("es-MX")}
+                  <span className="text-xs text-muted-foreground font-body font-normal ml-1">MXN/mes</span>
+                </p>
+                <p className="font-body text-[11px] text-muted-foreground mt-1 truncate">
+                  Zona comercial: <span className="font-medium text-foreground">{data.renta.zonaComercial}</span>
+                </p>
+                <p className="font-body text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                  {data.renta.descripcion}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Key metrics */}
         <motion.div custom={1} variants={cv} initial="hidden" animate="visible"
           className="grid grid-cols-2 gap-3">
