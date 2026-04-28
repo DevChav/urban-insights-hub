@@ -191,6 +191,7 @@ export async function analyzeZone(
     negocios,
     distribucion,
     demografia,
+    renta,
     timestamp: Date.now(),
   };
 }
