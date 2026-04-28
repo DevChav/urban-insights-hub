@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords, UsersRound } from "lucide-react";
+import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords, UsersRound, Home } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { AnalysisData } from "@/lib/mockData";
 
