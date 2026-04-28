@@ -170,6 +170,7 @@ export async function analyzeZone(
     promedioPeatones > 1800 ? "Alto" : promedioPeatones > 900 ? "Medio" : "Bajo";
 
   const demografia = buildDemografia(rng, radius);
+  const renta = estimarRenta(lat, lng);
 
   return {
     lat,
