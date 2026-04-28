@@ -1,7 +1,13 @@
 /** Simulated AI business consultant for Mexicali, MX. */
 
 import { SECTORES, type Subcategoria } from "./businessCategories";
-import type { ConsultoriaResult } from "./auth";
+import type { ConsultoriaResult, TamanoEmpresa } from "./auth";
+
+export interface ConsultoriaContext {
+  tamano?: TamanoEmpresa;
+  presupuestoMin?: number;
+  presupuestoMax?: number;
+}
 
 interface CostProfile {
   base: [number, number];
