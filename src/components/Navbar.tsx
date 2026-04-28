@@ -51,10 +51,23 @@ export default function Navbar() {
             </NavLink>
           ))}
           {user ? (
-            <div className="flex items-center gap-2 ml-2 pl-3 border-l border-border">
-              <div className="hidden sm:flex items-center gap-1.5 text-xs font-body text-muted-foreground">
-                <User className="h-3.5 w-3.5" />
-                <span className="max-w-[140px] truncate">{empresa?.nombre ?? user.email}</span>
+            <div className="flex items-center gap-3 ml-2 pl-3 border-l border-border">
+              <div className="hidden sm:flex flex-col items-end leading-tight">
+                {empresa?.duenoNombre ? (
+                  <>
+                    <span className="font-headline text-sm font-bold text-foreground max-w-[180px] truncate">
+                      {empresa.duenoNombre}
+                    </span>
+                    <span className="font-body text-[11px] text-muted-foreground max-w-[180px] truncate">
+                      {empresa.nombre}
+                    </span>
+                  </>
+                ) : (
+                  <span className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                    <User className="h-3.5 w-3.5" />
+                    <span className="max-w-[140px] truncate">{empresa?.nombre ?? user.email}</span>
+                  </span>
+                )}
               </div>
               <button
                 onClick={handleLogout}
