@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MapPin, BarChart3, Building2, Target } from "lucide-react";
+import fondo_principal from "../assets/fondo.jpg";
 
 const features = [
   { icon: MapPin, title: "Ubicación estratégica", desc: "Analiza cualquier zona comercial en el mapa de forma interactiva." },
@@ -15,7 +16,8 @@ export default function Index() {
   return (
     <div className="flex flex-col">
       {/* Hero */}
-      <section className="flex min-h-[80vh] items-center justify-center bg-background px-6">
+      <section className="flex min-h-[80vh] items-center justify-center bg-background px-6"
+        style={{backgroundImage: 'url(${fondo_principal})'}}>
         <motion.div
           className="max-w-2xl text-center"
           initial={{ opacity: 0, y: 24 }}
