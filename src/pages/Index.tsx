@@ -28,7 +28,7 @@ export default function Index() {
             Plataforma para emprendedores
           </span>
           <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-4">
-            GeoMarket
+            GeoMarke
           </h1>
           <p className="font-headline text-xl text-muted-foreground mb-2">
             Análisis inteligente de ubicaciones para emprendedores
