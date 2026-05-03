@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { scianDeSubcat } from "@/lib/cityStats";
-import { getLastZone, setLastZone, getMapState, setMapState } from "@/lib/zoneStorage";
+import { getLastZone, setLastZone, getMapState, setMapState, saveZone } from "@/lib/zoneStorage";
+import { toast } from "@/hooks/use-toast";
 import { MEXICALI_CENTER } from "@/lib/denueData";
 
 const RADIUS_OPTIONS = [200, 500, 1000, 2000];
@@ -318,7 +319,13 @@ const AnalyzePage = () => {
           {loading && <SkeletonPanel key="skeleton" />}
           {analysis && !loading && (
             <motion.div key="panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
-              <AnalysisPanel data={analysis} />
+              <AnalysisPanel
+                data={analysis}
+                onSave={() => {
+                  saveZone(analysis);
+                  toast({ title: "Zona guardada", description: "La encontrarás en tu Dashboard." });
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
