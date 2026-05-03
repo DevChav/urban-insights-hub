@@ -3,7 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Sparkles, Wallet, Building2, TrendingUp, MapPin, ArrowRight,
-  Trophy, BarChart3, Users, Briefcase,
+  Trophy, BarChart3, Briefcase, CheckCircle2, AlertTriangle, Compass, Bookmark, Trash2,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEstadisticasCiudad, buildPresupuesto, scianDeSubcat } from "@/lib/cityStats";
-import { getLastZone } from "@/lib/zoneStorage";
+import { getLastZone, getSavedZones, removeSavedZone } from "@/lib/zoneStorage";
+import { useState } from "react";
 
 const ZONA_COLORS: Record<string, string> = {
   Centro:   "hsl(214 100% 40%)",
@@ -39,6 +40,40 @@ export default function DashboardPage() {
     [empresa?.consultoria],
   );
   const lastZone = useMemo(() => getLastZone(), []);
+  const [savedZones, setSavedZones] = useState(() => getSavedZones());
+
+  // Sentinel: detecta competidores nuevos cerca de la última zona analizada
+  const alertas = useMemo(() => {
+    if (!lastZone) return [];
+    const items: { tipo: "competencia" | "oportunidad"; texto: string }[] = [];
+    if (lastZone.competidoresDirectos > 5) {
+      items.push({ tipo: "competencia", texto: `Se detectaron ${lastZone.competidoresDirectos} competidores directos en un radio de ${lastZone.radio}m de tu última zona analizada.` });
+    }
+    if (lastZone.totalNegocios > 30 && lastZone.competidoresDirectos <= 2) {
+      items.push({ tipo: "oportunidad", texto: `Zona con alto movimiento comercial (${lastZone.totalNegocios} negocios) y muy poca competencia directa: oportunidad clara.` });
+    }
+    if (lastZone.desgloseScore && lastZone.desgloseScore.flujo < 4) {
+      items.push({ tipo: "competencia", texto: "El flujo peatonal estimado en tu zona está por debajo del promedio: revisa horarios y estrategia de delivery." });
+    }
+    if (!items.length) {
+      items.push({ tipo: "oportunidad", texto: "Sin alertas relevantes en este momento. Tu última zona analizada se mantiene estable." });
+    }
+    return items;
+  }, [lastZone]);
+
+  // Predictor: sugiere la "siguiente mejor zona" basada en distribución por zona del DENUE
+  const siguienteZona = useMemo(() => {
+    if (!estadisticas) return null;
+    const ordenadas = [...estadisticas.porZona].sort((a, b) => a.cantidad - b.cantidad);
+    const sugerida = ordenadas[0];
+    const lider = [...estadisticas.porZona].sort((a, b) => b.cantidad - a.cantidad)[0];
+    return {
+      zona: sugerida.zona,
+      competidores: sugerida.cantidad,
+      lider: lider.zona,
+      lideres: lider.cantidad,
+    };
+  }, [estadisticas]);
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
