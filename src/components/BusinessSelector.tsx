@@ -172,7 +172,7 @@ export default function BusinessSelector({ value, onChange }: Props) {
           selectedLabel={selectedLabel}
           step={showCategoria ? "3" : "2"}
         >
-          {subcatSource.subcategorias.map((sc) => (
+          {[...subcatSource.subcategorias].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((sc) => (
             <DropdownItem
               key={sc.id}
               selected={sc.id === value}
