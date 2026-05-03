@@ -122,7 +122,7 @@ export default function BusinessSelector({ value, onChange }: Props) {
         selectedLabel={sector?.nombre.replace("Sector ", "") ?? null}
         step="1"
       >
-        {SECTORES.map((s) => (
+        {[...SECTORES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((s) => (
           <DropdownItem
             key={s.id}
             selected={s.id === sectorId}
