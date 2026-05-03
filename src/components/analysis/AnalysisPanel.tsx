@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords, UsersRound, Home } from "lucide-react";
+import { MapPin, TrendingUp, Star, Users, Car, Briefcase, Swords, UsersRound, Home, Activity, Network, Route, Bookmark, Info } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { AnalysisData } from "@/lib/mockData";
+import { Button } from "@/components/ui/button";
 
 const cv = {
   hidden: { opacity: 0, y: 12 },
@@ -21,7 +22,7 @@ const COLORS = [
   "hsl(30 80% 55%)",
 ];
 
-export default function AnalysisPanel({ data }: { data: AnalysisData }) {
+export default function AnalysisPanel({ data, onSave }: { data: AnalysisData; onSave?: () => void }) {
   const nivelColor =
     data.nivelActividad === "Alto"
       ? "text-green-600 bg-green-50"
