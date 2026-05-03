@@ -122,7 +122,7 @@ export default function BusinessSelector({ value, onChange }: Props) {
         selectedLabel={sector?.nombre.replace("Sector ", "") ?? null}
         step="1"
       >
-        {SECTORES.map((s) => (
+        {[...SECTORES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((s) => (
           <DropdownItem
             key={s.id}
             selected={s.id === sectorId}
@@ -147,7 +147,7 @@ export default function BusinessSelector({ value, onChange }: Props) {
           selectedLabel={categoria?.nombre ?? null}
           step="2"
         >
-          {sector!.categorias.map((c) => (
+          {[...sector!.categorias].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((c) => (
             <DropdownItem
               key={c.id}
               selected={c.id === categoriaId}
@@ -172,7 +172,7 @@ export default function BusinessSelector({ value, onChange }: Props) {
           selectedLabel={selectedLabel}
           step={showCategoria ? "3" : "2"}
         >
-          {subcatSource.subcategorias.map((sc) => (
+          {[...subcatSource.subcategorias].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((sc) => (
             <DropdownItem
               key={sc.id}
               selected={sc.id === value}

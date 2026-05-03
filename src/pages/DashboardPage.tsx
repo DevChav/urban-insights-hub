@@ -3,7 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Sparkles, Wallet, Building2, TrendingUp, MapPin, ArrowRight,
-  Trophy, BarChart3, Users, Briefcase,
+  Trophy, BarChart3, Briefcase, CheckCircle2, AlertTriangle, Compass, Bookmark, Trash2,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEstadisticasCiudad, buildPresupuesto, scianDeSubcat } from "@/lib/cityStats";
-import { getLastZone } from "@/lib/zoneStorage";
+import { getLastZone, getSavedZones, removeSavedZone } from "@/lib/zoneStorage";
+import { useState } from "react";
 
 const ZONA_COLORS: Record<string, string> = {
   Centro:   "hsl(214 100% 40%)",
@@ -39,6 +40,40 @@ export default function DashboardPage() {
     [empresa?.consultoria],
   );
   const lastZone = useMemo(() => getLastZone(), []);
+  const [savedZones, setSavedZones] = useState(() => getSavedZones());
+
+  // Sentinel: detecta competidores nuevos cerca de la última zona analizada
+  const alertas = useMemo(() => {
+    if (!lastZone) return [];
+    const items: { tipo: "competencia" | "oportunidad"; texto: string }[] = [];
+    if (lastZone.competidoresDirectos > 5) {
+      items.push({ tipo: "competencia", texto: `Se detectaron ${lastZone.competidoresDirectos} competidores directos en un radio de ${lastZone.radio}m de tu última zona analizada.` });
+    }
+    if (lastZone.totalNegocios > 30 && lastZone.competidoresDirectos <= 2) {
+      items.push({ tipo: "oportunidad", texto: `Zona con alto movimiento comercial (${lastZone.totalNegocios} negocios) y muy poca competencia directa: oportunidad clara.` });
+    }
+    if (lastZone.desgloseScore && lastZone.desgloseScore.flujo < 4) {
+      items.push({ tipo: "competencia", texto: "El flujo peatonal estimado en tu zona está por debajo del promedio: revisa horarios y estrategia de delivery." });
+    }
+    if (!items.length) {
+      items.push({ tipo: "oportunidad", texto: "Sin alertas relevantes en este momento. Tu última zona analizada se mantiene estable." });
+    }
+    return items;
+  }, [lastZone]);
+
+  // Predictor: sugiere la "siguiente mejor zona" basada en distribución por zona del DENUE
+  const siguienteZona = useMemo(() => {
+    if (!estadisticas) return null;
+    const ordenadas = [...estadisticas.porZona].sort((a, b) => a.cantidad - b.cantidad);
+    const sugerida = ordenadas[0];
+    const lider = [...estadisticas.porZona].sort((a, b) => b.cantidad - a.cantidad)[0];
+    return {
+      zona: sugerida.zona,
+      competidores: sugerida.cantidad,
+      lider: lider.zona,
+      lideres: lider.cantidad,
+    };
+  }, [estadisticas]);
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
@@ -293,6 +328,142 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
           </div>
+        )}
+
+        {/* Checklist de apertura */}
+        {empresa.consultoria?.criticos && (
+          <motion.div custom={7} variants={fade} initial="hidden" animate="visible">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg font-headline">Checklist de apertura</CardTitle>
+                </div>
+                <p className="font-body text-xs text-muted-foreground mt-1">
+                  Pasos legales y operativos clave antes de abrir tu negocio en Mexicali.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {empresa.consultoria.criticos.map((c) => (
+                    <li key={c.item} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-body text-sm font-medium text-foreground">{c.item}</p>
+                        <p className="font-body text-xs text-muted-foreground mt-0.5">{c.descripcion}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Sección Gestión de Negocio: Sentinel + Predictor */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div custom={8} variants={fade} initial="hidden" animate="visible">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg font-headline">Sentinel · Alertas</CardTitle>
+                </div>
+                <p className="font-body text-xs text-muted-foreground mt-1">Monitoreo de competencia y movimientos en tu zona.</p>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {alertas.map((a, i) => (
+                    <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${a.tipo === "competencia" ? "border-orange-300/50 bg-orange-50/50" : "border-primary/30 bg-primary/5"}`}>
+                      {a.tipo === "competencia"
+                        ? <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                        : <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />}
+                      <p className="font-body text-sm text-foreground leading-relaxed">{a.texto}</p>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div custom={9} variants={fade} initial="hidden" animate="visible">
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Compass className="h-4 w-4 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg font-headline">Predictor de expansión</CardTitle>
+                </div>
+                <p className="font-body text-xs text-muted-foreground mt-1">Sugerencia para abrir una sucursal.</p>
+              </CardHeader>
+              <CardContent>
+                {siguienteZona ? (
+                  <>
+                    <p className="font-body text-xs uppercase tracking-wider text-muted-foreground">Siguiente mejor zona</p>
+                    <p className="font-headline text-3xl font-bold text-primary">Zona {siguienteZona.zona}</p>
+                    <p className="font-body text-sm text-foreground mt-2 leading-relaxed">
+                      Solo <span className="font-semibold">{siguienteZona.competidores}</span> negocios de tu giro operan aquí, frente a <span className="font-semibold">{siguienteZona.lideres}</span> en la zona {siguienteZona.lider} (saturada). Es la zona con mayor potencial de captura de mercado para una sucursal.
+                    </p>
+                    <Link to="/mapa">
+                      <Button variant="outline" size="sm" className="mt-3 gap-2">
+                        Validar en el mapa <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <p className="font-body text-sm text-muted-foreground">Aún no hay datos suficientes para sugerir una zona.</p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Zonas guardadas */}
+        {savedZones.length > 0 && (
+          <motion.div custom={10} variants={fade} initial="hidden" animate="visible">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Bookmark className="h-4 w-4 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg font-headline">Mis zonas guardadas</CardTitle>
+                </div>
+                <p className="font-body text-xs text-muted-foreground mt-1">Historial de ubicaciones validadas en el mapa.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {savedZones.map((z) => (
+                    <div key={z.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/40 transition-colors">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="font-headline text-sm font-bold text-primary">{z.puntuacion}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body text-sm font-medium text-foreground truncate">
+                          {z.renta?.zonaComercial ?? `Zona ${z.zona}`}
+                        </p>
+                        <p className="font-body text-[11px] text-muted-foreground truncate">
+                          {z.competidoresDirectos} competidores · ${z.renta?.promedio?.toLocaleString("es-MX") ?? "—"} MXN/mes · {new Date(z.savedAt).toLocaleDateString("es-MX")}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { removeSavedZone(z.id); setSavedZones(getSavedZones()); }}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         )}
 
         {/* Footer info */}

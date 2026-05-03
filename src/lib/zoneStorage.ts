@@ -36,3 +36,33 @@ export function getMapState(): MapPersistedState {
 export function setMapState(s: MapPersistedState) {
   try { localStorage.setItem(MAP_STATE_KEY, JSON.stringify(s)); } catch {}
 }
+
+// ── Zonas guardadas (historial del Dashboard) ───────────────────
+const SAVED_ZONES_KEY = "geomarket_saved_zones";
+
+export interface SavedZone extends AnalysisData {
+  id: string;
+  alias?: string;
+  savedAt: number;
+}
+
+export function getSavedZones(): SavedZone[] {
+  try {
+    const raw = localStorage.getItem(SAVED_ZONES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function saveZone(z: AnalysisData, alias?: string): SavedZone {
+  const list = getSavedZones();
+  const id = crypto.randomUUID();
+  const entry: SavedZone = { ...z, id, alias, savedAt: Date.now() };
+  list.unshift(entry);
+  try { localStorage.setItem(SAVED_ZONES_KEY, JSON.stringify(list.slice(0, 20))); } catch {}
+  return entry;
+}
+
+export function removeSavedZone(id: string) {
+  const list = getSavedZones().filter((z) => z.id !== id);
+  try { localStorage.setItem(SAVED_ZONES_KEY, JSON.stringify(list)); } catch {}
+}

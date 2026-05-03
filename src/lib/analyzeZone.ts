@@ -153,18 +153,40 @@ export async function analyzeZone(
     }));
 
   // ── Tráfico estimado (función del radio + densidad) ──────────
-  const densidad = totales.length / Math.max(1, (radius / 100));
-  const basePeat = Math.round(450 + densidad * 80 + rng() * 600);
-  const baseVeh = Math.round(800 + densidad * 120 + rng() * 1200);
+  const densidadBase = totales.length / Math.max(1, (radius / 100));
+  const basePeat = Math.round(450 + densidadBase * 80 + rng() * 600);
+  const baseVeh = Math.round(800 + densidadBase * 120 + rng() * 1200);
   const flujoSemanal = buildFlujoSemanal(rng, basePeat, baseVeh);
   const promedioPeatones = Math.round(flujoSemanal.reduce((a, x) => a + x.peatones, 0) / 7);
   const flujoVehicular = Math.round(flujoSemanal.reduce((a, x) => a + x.vehiculos, 0) / 7);
 
-  // ── Puntuación 0-10 ──────────────────────────────────────────
-  // Más tráfico ↑ y menos competencia ↑
-  const trafScore = Math.min(10, (promedioPeatones / 1200) * 5 + (flujoVehicular / 6000) * 5);
-  const compPenalty = Math.min(6, competidores.length * 0.6);
-  const puntuacion = Math.max(1, Math.min(10, Math.round((trafScore - compPenalty + 4) * 10) / 10));
+  // ── Puntuación 0-10 con desglose por variable ────────────────
+  const flujoScore = Math.min(10, (promedioPeatones / 1500) * 5 + (flujoVehicular / 7000) * 5);
+  const competenciaScore = Math.max(0, 10 - competidores.length * 1.2); // menos competidores = mejor
+  const densidadScore = Math.min(10, (totales.length / Math.max(1, radius / 100)) * 1.2);
+  // Accesibilidad: cercanía al centro de Mexicali + densidad de negocios alrededor
+  const distCentroKm = Math.sqrt((lat - 32.6245) ** 2 + (lng - (-115.4523)) ** 2) * 111;
+  const accesibilidadScore = Math.max(2, Math.min(10, 10 - distCentroKm * 0.7 + Math.min(2, totales.length / 30)));
+
+  const round1 = (x: number) => Math.round(x * 10) / 10;
+  const flujo = round1(flujoScore);
+  const competencia = round1(competenciaScore);
+  const densidad = round1(densidadScore);
+  const accesibilidad = round1(accesibilidadScore);
+  const puntuacion = round1((flujo * 0.35 + competencia * 0.30 + densidad * 0.15 + accesibilidad * 0.20));
+
+  let explicacion = "";
+  if (competidores.length > 10 && promedioPeatones < 700) {
+    explicacion = "Zona saturada con bajo tráfico peatonal: alto riesgo de canibalización y poca demanda residual.";
+  } else if (competencia >= 7 && flujo >= 6) {
+    explicacion = "Excelente combinación: poca competencia directa y un flujo peatonal/vehicular sólido — oportunidad de mercado.";
+  } else if (flujo >= 7 && competencia < 5) {
+    explicacion = "Mucho tráfico pero competencia consolidada; necesitarás un diferenciador claro de precio o producto.";
+  } else if (densidad < 3) {
+    explicacion = "Zona poco desarrollada comercialmente: menor competencia pero también menor flujo orgánico.";
+  } else {
+    explicacion = "Combinación equilibrada de flujo, competencia y densidad — viable con buena ejecución operativa.";
+  }
 
   const nivelActividad: AnalysisData["nivelActividad"] =
     promedioPeatones > 1800 ? "Alto" : promedioPeatones > 900 ? "Medio" : "Bajo";
@@ -192,6 +214,7 @@ export async function analyzeZone(
     distribucion,
     demografia,
     renta,
+    desgloseScore: { flujo, competencia, densidad, accesibilidad, explicacion },
     timestamp: Date.now(),
   };
 }
