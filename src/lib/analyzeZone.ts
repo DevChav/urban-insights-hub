@@ -153,9 +153,9 @@ export async function analyzeZone(
     }));
 
   // ── Tráfico estimado (función del radio + densidad) ──────────
-  const densidad = totales.length / Math.max(1, (radius / 100));
-  const basePeat = Math.round(450 + densidad * 80 + rng() * 600);
-  const baseVeh = Math.round(800 + densidad * 120 + rng() * 1200);
+  const densidadBase = totales.length / Math.max(1, (radius / 100));
+  const basePeat = Math.round(450 + densidadBase * 80 + rng() * 600);
+  const baseVeh = Math.round(800 + densidadBase * 120 + rng() * 1200);
   const flujoSemanal = buildFlujoSemanal(rng, basePeat, baseVeh);
   const promedioPeatones = Math.round(flujoSemanal.reduce((a, x) => a + x.peatones, 0) / 7);
   const flujoVehicular = Math.round(flujoSemanal.reduce((a, x) => a + x.vehiculos, 0) / 7);
