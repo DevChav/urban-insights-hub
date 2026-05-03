@@ -67,7 +67,16 @@ export interface AnalysisData {
   distribucion: { nombre: string; cantidad: number }[];
   demografia: DemografiaZona;
   renta: RentData;
+  desgloseScore: ScoreBreakdown;
   timestamp: number;
+}
+
+export interface ScoreBreakdown {
+  flujo: number;        // 0-10
+  competencia: number;  // 0-10 (mayor = mejor, menos competencia)
+  densidad: number;     // 0-10
+  accesibilidad: number;// 0-10
+  explicacion: string;
 }
 
 // ── Presupuesto detallado para Dashboard ────────────────────────
