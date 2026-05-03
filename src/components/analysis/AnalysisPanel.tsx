@@ -51,9 +51,45 @@ export default function AnalysisPanel({ data, onSave }: { data: AnalysisData; on
         <p className="font-body text-xs text-muted-foreground mt-0.5">
           {data.lat.toFixed(4)}, {data.lng.toFixed(4)}
         </p>
+        {onSave && (
+          <Button size="sm" variant="outline" className="mt-3 w-full gap-2" onClick={onSave}>
+            <Bookmark className="h-3.5 w-3.5" /> Guardar zona en mi historial
+          </Button>
+        )}
       </motion.div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        {data.desgloseScore && (
+          <motion.div custom={0.2} variants={cv} initial="hidden" animate="visible"
+            className="rounded-lg border border-border bg-background p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="h-4 w-4 text-primary" />
+              <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">¿Por qué esta calificación?</p>
+            </div>
+            <div className="space-y-2">
+              {[
+                { label: "Flujo", value: data.desgloseScore.flujo, Icon: Users },
+                { label: "Competencia", value: data.desgloseScore.competencia, Icon: Swords },
+                { label: "Densidad", value: data.desgloseScore.densidad, Icon: Network },
+                { label: "Accesibilidad", value: data.desgloseScore.accesibilidad, Icon: Route },
+              ].map((v) => (
+                <div key={v.label} className="grid grid-cols-[90px_1fr_38px] items-center gap-2">
+                  <span className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                    <v.Icon className="h-3 w-3" /> {v.label}
+                  </span>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${(v.value / 10) * 100}%` }} />
+                  </div>
+                  <span className="font-headline text-xs font-bold text-foreground tabular-nums text-right">{v.value.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-start gap-2 rounded-md bg-primary/5 p-2.5">
+              <Info className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+              <p className="font-body text-[11px] text-foreground leading-relaxed">{data.desgloseScore.explicacion}</p>
+            </div>
+          </motion.div>
+        )}
         {/* Costo de renta estimado */}
         {data.renta && (
           <motion.div custom={0.5} variants={cv} initial="hidden" animate="visible"
