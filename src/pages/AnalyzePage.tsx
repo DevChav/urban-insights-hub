@@ -25,6 +25,7 @@ function radiusLabel(m: number) {
 const AnalyzePage = () => {
   const { user, empresa, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
