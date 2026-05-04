@@ -44,6 +44,7 @@ export default function DashboardPage() {
     [empresa?.consultoria],
   );
   const lastZone = useMemo(() => getLastZone(), []);
+  const pulse = useMemo(() => getMarketPulse(scian), [scian]);
   const [savedZones, setSavedZones] = useState(() => getSavedZones());
 
   // Sentinel: detecta competidores nuevos cerca de la última zona analizada
