@@ -184,6 +184,24 @@ const AnalyzePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Apply ?lat=&lng=&radius= from Pulse / external links
+  useEffect(() => {
+    const lat = parseFloat(searchParams.get("lat") ?? "");
+    const lng = parseFloat(searchParams.get("lng") ?? "");
+    const r = parseInt(searchParams.get("radius") ?? "", 10);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const useRadius = RADIUS_OPTIONS.includes(r) ? r : radius;
+    if (useRadius !== radius) setRadius(useRadius);
+    map.setView([lat, lng], 16, { animate: true });
+    setSelectedPoint({ lat, lng });
+    runRef.current(lat, lng, useRadius);
+    // Limpia los params para no re-disparar
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Re-analyze on radius change
   useEffect(() => {
     if (selectedPoint && empresa?.subcatId) {
