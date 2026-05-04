@@ -11,7 +11,6 @@ const publicLinks = [
 const privateLinks = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/mapa", label: "Validar ubicación" },
-  { to: "/estadisticas", label: "Estadísticas" },
 ];
 
 export default function Navbar() {
