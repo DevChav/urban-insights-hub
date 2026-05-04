@@ -147,6 +147,36 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
+        {/* Recomendación del día (Pulse) */}
+        <motion.div custom={1.5} variants={fade} initial="hidden" animate="visible">
+          <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+            <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-body text-[11px] uppercase tracking-wider text-primary font-semibold">{pulse.recomendacion.titulo}</p>
+                <p className="font-body text-sm text-foreground leading-relaxed mt-0.5">{pulse.recomendacion.texto}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Pulso de Mexicali · Feed + Misiones */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <motion.div custom={1.7} variants={fade} initial="hidden" animate="visible" className="lg:col-span-2">
+            <PulseFeed pulse={pulse} />
+          </motion.div>
+          <motion.div custom={1.8} variants={fade} initial="hidden" animate="visible">
+            <MissionsPanel misiones={pulse.misiones} />
+          </motion.div>
+        </div>
+
+        {/* Actividad económica 24h */}
+        <motion.div custom={1.9} variants={fade} initial="hidden" animate="visible">
+          <ActivityChart data={pulse.actividad} />
+        </motion.div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Recomendación IA */}
           <motion.div custom={2} variants={fade} initial="hidden" animate="visible" className="lg:col-span-2">
