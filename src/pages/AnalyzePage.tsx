@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Search, Loader2, ArrowLeft, Briefcase } from "lucide-react";
 import AnalysisPanel from "@/components/analysis/AnalysisPanel";
 import type { AnalysisData } from "@/lib/mockData";
