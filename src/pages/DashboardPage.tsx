@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEstadisticasCiudad, buildPresupuesto, scianDeSubcat } from "@/lib/cityStats";
 import { getLastZone, getSavedZones, removeSavedZone } from "@/lib/zoneStorage";
+import { getMarketPulse } from "@/lib/marketPulse";
+import PulseFeed from "@/components/dashboard/PulseFeed";
+import ActivityChart from "@/components/dashboard/ActivityChart";
+import MissionsPanel from "@/components/dashboard/MissionsPanel";
 import { useState } from "react";
 
 const ZONA_COLORS: Record<string, string> = {
