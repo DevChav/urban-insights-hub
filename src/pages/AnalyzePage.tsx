@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Search, Loader2, ArrowLeft, Briefcase } from "lucide-react";
 import AnalysisPanel from "@/components/analysis/AnalysisPanel";
 import type { AnalysisData } from "@/lib/mockData";
@@ -25,6 +25,7 @@ function radiusLabel(m: number) {
 const AnalyzePage = () => {
   const { user, empresa, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -182,6 +183,24 @@ const AnalyzePage = () => {
     return () => { map.remove(); mapInstanceRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply ?lat=&lng=&radius= from Pulse / external links
+  useEffect(() => {
+    const lat = parseFloat(searchParams.get("lat") ?? "");
+    const lng = parseFloat(searchParams.get("lng") ?? "");
+    const r = parseInt(searchParams.get("radius") ?? "", 10);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const useRadius = RADIUS_OPTIONS.includes(r) ? r : radius;
+    if (useRadius !== radius) setRadius(useRadius);
+    map.setView([lat, lng], 16, { animate: true });
+    setSelectedPoint({ lat, lng });
+    runRef.current(lat, lng, useRadius);
+    // Limpia los params para no re-disparar
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Re-analyze on radius change
   useEffect(() => {

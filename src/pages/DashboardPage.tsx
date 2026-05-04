@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEstadisticasCiudad, buildPresupuesto, scianDeSubcat } from "@/lib/cityStats";
 import { getLastZone, getSavedZones, removeSavedZone } from "@/lib/zoneStorage";
+import { getMarketPulse } from "@/lib/marketPulse";
+import PulseFeed from "@/components/dashboard/PulseFeed";
+import ActivityChart from "@/components/dashboard/ActivityChart";
+import MissionsPanel from "@/components/dashboard/MissionsPanel";
 import { useState } from "react";
 
 const ZONA_COLORS: Record<string, string> = {
@@ -40,6 +44,7 @@ export default function DashboardPage() {
     [empresa?.consultoria],
   );
   const lastZone = useMemo(() => getLastZone(), []);
+  const pulse = useMemo(() => getMarketPulse(scian), [scian]);
   const [savedZones, setSavedZones] = useState(() => getSavedZones());
 
   // Sentinel: detecta competidores nuevos cerca de la última zona analizada
@@ -141,6 +146,36 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
         )}
+
+        {/* Recomendación del día (Pulse) */}
+        <motion.div custom={1.5} variants={fade} initial="hidden" animate="visible">
+          <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+            <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-body text-[11px] uppercase tracking-wider text-primary font-semibold">{pulse.recomendacion.titulo}</p>
+                <p className="font-body text-sm text-foreground leading-relaxed mt-0.5">{pulse.recomendacion.texto}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Pulso de Mexicali · Feed + Misiones */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <motion.div custom={1.7} variants={fade} initial="hidden" animate="visible" className="lg:col-span-2">
+            <PulseFeed pulse={pulse} />
+          </motion.div>
+          <motion.div custom={1.8} variants={fade} initial="hidden" animate="visible">
+            <MissionsPanel misiones={pulse.misiones} />
+          </motion.div>
+        </div>
+
+        {/* Actividad económica 24h */}
+        <motion.div custom={1.9} variants={fade} initial="hidden" animate="visible">
+          <ActivityChart data={pulse.actividad} />
+        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Recomendación IA */}
