@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
 import RegistroEmpresaPage from "./pages/RegistroEmpresaPage";
