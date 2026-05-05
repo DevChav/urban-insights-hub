@@ -241,18 +241,18 @@ const AnalyzePage = () => {
   if (!empresa) return <Navigate to="/registro-empresa" replace />;
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-3.5rem)] w-full overflow-hidden relative">
       {/* Mapa */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-0">
         <div ref={mapRef} className="h-full w-full" />
 
         {/* Top bar: back + búsqueda + giro */}
-        <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-col md:flex-row gap-2 md:items-start">
+        <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-col sm:flex-row gap-2 sm:items-start">
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate("/dashboard")}
-            className="bg-card/90 backdrop-blur-sm shadow-md shrink-0"
+            className="bg-card/90 backdrop-blur-sm shadow-md shrink-0 min-h-[40px] hidden sm:inline-flex"
           >
             <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
           </Button>
@@ -263,16 +263,16 @@ const AnalyzePage = () => {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar dirección o colonia en Mexicali…"
-                className="pl-9 bg-card/95 backdrop-blur-sm shadow-md"
+                placeholder="Buscar dirección en Mexicali…"
+                className="pl-9 bg-card/95 backdrop-blur-sm shadow-md min-h-[44px]"
               />
             </div>
-            <Button type="submit" size="sm" disabled={searching || !searchQuery.trim()}>
+            <Button type="submit" size="sm" disabled={searching || !searchQuery.trim()} className="min-h-[44px] min-w-[44px]">
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
             </Button>
           </form>
 
-          <div className="hidden md:flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border border-border rounded-md px-3 py-1.5 shadow-md">
+          <div className="hidden md:flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border border-border rounded-md px-3 py-1.5 shadow-md min-h-[40px]">
             <Briefcase className="h-3.5 w-3.5 text-primary" />
             <span className="font-body text-xs text-foreground font-medium truncate max-w-[180px]">
               {empresa.nombre}
@@ -281,10 +281,10 @@ const AnalyzePage = () => {
         </div>
 
         {/* Radio control */}
-        <div className="absolute bottom-6 left-4 z-[1000]">
-          <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-xl px-4 py-3 w-[260px]">
+        <div className={`absolute ${analysis ? "bottom-[55vh] sm:bottom-6" : "bottom-24 sm:bottom-6"} left-3 z-[1000] md:bottom-6`}>
+          <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-xl px-4 py-3 w-[240px] sm:w-[260px]">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">Radio de análisis</p>
+              <p className="font-body text-xs text-muted-foreground uppercase tracking-wider">Radio</p>
               <span className="font-headline text-sm font-semibold text-primary">{radiusLabel(radius)}</span>
             </div>
             <Slider
@@ -309,19 +309,19 @@ const AnalyzePage = () => {
           {!analysis && !loading && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground rounded-xl px-5 py-3 shadow-xl"
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-primary-foreground rounded-xl px-4 py-2.5 shadow-xl max-w-[92vw]"
             >
-              <p className="font-body text-sm font-medium flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                Busca una dirección o haz clic en el mapa para validar la ubicación
+              <p className="font-body text-xs sm:text-sm font-medium flex items-center gap-2 text-center">
+                <Search className="h-4 w-4 shrink-0" />
+                Toca el mapa para validar la ubicación
               </p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Side panel */}
-      <div className="w-[420px] h-full bg-card border-l border-border flex flex-col overflow-hidden">
+      {/* Side panel — Desktop */}
+      <div className="hidden md:flex w-[420px] h-full bg-card border-l border-border flex-col overflow-hidden">
         <AnimatePresence mode="wait">
           {!analysis && !loading && (
             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -349,6 +349,44 @@ const AnalyzePage = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Bottom Sheet — Mobile */}
+      <AnimatePresence>
+        {(analysis || loading) && (
+          <motion.div
+            key="mobile-sheet"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 260 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120) setAnalysis(null);
+            }}
+            className="md:hidden fixed inset-x-0 bottom-0 z-[1050] bg-card border-t border-border rounded-t-2xl shadow-2xl flex flex-col"
+            style={{ maxHeight: "75vh", paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="flex justify-center pt-2 pb-1 shrink-0 cursor-grab active:cursor-grabbing">
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+            </div>
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              {loading ? (
+                <SkeletonPanel />
+              ) : analysis ? (
+                <AnalysisPanel
+                  data={analysis}
+                  onSave={() => {
+                    saveZone(analysis);
+                    toast({ title: "Zona guardada", description: "La encontrarás en tu Dashboard." });
+                  }}
+                />
+              ) : null}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
