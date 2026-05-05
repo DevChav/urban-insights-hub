@@ -66,6 +66,8 @@ const App = () => (
             <Route path="/acerca" element={<AcercaPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </div>
+          <BottomNav />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
