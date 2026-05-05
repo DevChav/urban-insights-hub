@@ -32,23 +32,25 @@ export default function Navbar() {
           <span className="font-headline text-lg font-bold text-foreground">GeoMarket</span>
         </NavLink>
         <nav className="flex items-center gap-1">
-          {links.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "rounded-md px-3 py-1.5 font-body text-sm transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )
-              }
-            >
-              {l.label}
-            </NavLink>
-          ))}
+          <div className={cn("items-center gap-1", user ? "hidden md:flex" : "flex")}>
+            {links.map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                end={l.to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-md px-3 py-1.5 font-body text-sm transition-colors min-h-[40px] flex items-center",
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  )
+                }
+              >
+                {l.label}
+              </NavLink>
+            ))}
+          </div>
           {user ? (
             <div className="flex items-center gap-3 ml-2 pl-3 border-l border-border">
               <div className="hidden sm:flex flex-col items-end leading-tight">

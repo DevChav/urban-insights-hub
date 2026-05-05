@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
 import RegistroEmpresaPage from "./pages/RegistroEmpresaPage";
@@ -25,6 +26,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Navbar />
+          <div className="pb-16 md:pb-0">
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
@@ -64,6 +66,8 @@ const App = () => (
             <Route path="/acerca" element={<AcercaPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </div>
+          <BottomNav />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
